@@ -64,6 +64,14 @@ def test_check_skips_fetch_without_release(tmp_path):
     assert "skip: no --release" in r.stdout
 
 
+def test_check_shows_service_install(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(tmp_path / "systemd")},
+    )
+    assert f"would: install {tmp_path / 'systemd' / 'xcroute.service'}" in r.stdout
+
+
 def test_check_reflects_existing_files(tmp_path):
     etc = tmp_path / "etc" / "opencode"
     etc.mkdir(parents=True)

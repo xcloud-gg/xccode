@@ -84,6 +84,20 @@ write_file() {  # write_file "<path>" <<'EOF' ... EOF — idempotent file write 
     cat > "$path"
 }
 
+copy_file() {  # copy_file <src> <dst> — idempotent install of a tracked asset
+    src="$1" dst="$2"
+    if [ -f "$dst" ]; then
+        echo "already: $dst"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: install $dst"
+        return 0
+    fi
+    echo ">> install $dst"
+    install -m 0644 "$src" "$dst"
+}
+
 # --- 1. account, group, subuid range, slice ------------------------------------
 step_account() {
     if getent passwd xccode >/dev/null 2>&1; then
@@ -165,13 +179,21 @@ step_fetch() {
     fi
 }
 
+# --- 5. services (systemd units, all loopback) -----------------------------------
+step_services() {
+    for unit in xcroute; do
+        copy_file "$(dirname "$0")/units/$unit.service" "$SYSTEMD/$unit.service"
+    done
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
     step_packages
     step_opt
     step_fetch
-    # Upcoming increments: services, marius profile, timers, guardrails, --restore.
+    step_services
+    # Upcoming increments: marius profile, timers, guardrails, --restore.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
