@@ -1,0 +1,35 @@
+# xccode version pins (XC-DES-001 §6.11). Filled by the release process: a component with an
+# empty version, or an empty required checksum/digest, fails `xccode.versions.validate` and cannot
+# be shipped, installed, or upgraded to. Never hand-edit the checksums; record them from the release.
+
+[opencode]
+version = ""
+sha256 = ""
+
+[omniroute]
+version = ""
+
+[openagentscontrol]
+version = ""
+commit = ""
+
+[gitleaks]
+version = ""
+sha256 = ""
+
+[hermes]
+version = ""
+
+[openviking]
+version = ""
+
+[tei]
+version = ""
+digest = ""
+
+[dsh]
+version = ""
+
+[debian_image]
+version = ""
+sha256 = ""
