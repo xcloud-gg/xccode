@@ -72,6 +72,14 @@ def test_check_shows_service_install(tmp_path):
     assert f"would: install {tmp_path / 'systemd' / 'xcroute.service'}" in r.stdout
 
 
+def test_check_shows_launcher_install(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_ETC": str(tmp_path / "etc")},
+    )
+    assert "would: install /home/marius/.local/bin/xcc" in r.stdout
+
+
 def test_check_reflects_existing_files(tmp_path):
     etc = tmp_path / "etc" / "opencode"
     etc.mkdir(parents=True)

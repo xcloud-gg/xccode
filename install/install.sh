@@ -84,8 +84,8 @@ write_file() {  # write_file "<path>" <<'EOF' ... EOF — idempotent file write 
     cat > "$path"
 }
 
-copy_file() {  # copy_file <src> <dst> — idempotent install of a tracked asset
-    src="$1" dst="$2"
+copy_file() {  # copy_file <src> <dst> [mode] — idempotent install of a tracked asset
+    src="$1" dst="$2" mode="${3:-0644}"
     if [ -f "$dst" ]; then
         echo "already: $dst"
         return 0
@@ -95,7 +95,7 @@ copy_file() {  # copy_file <src> <dst> — idempotent install of a tracked asset
         return 0
     fi
     echo ">> install $dst"
-    install -m 0644 "$src" "$dst"
+    install -m "$mode" "$src" "$dst"
 }
 
 # --- 1. account, group, subuid range, slice ------------------------------------
@@ -186,6 +186,15 @@ step_services() {
     done
 }
 
+# --- 6. operator profile: xcc launcher (OpenCode profile, OAC, skills next) --------
+step_profile() {
+    dst="/home/$OPERATOR/.local/bin/xcc"
+    ensure_dir "/home/$OPERATOR/.local/bin" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/xcc" "$dst" 0755
+    # Upcoming: OpenCode profile (OPENCODE_CONFIG_DIR), OAC agents, plugins, native skills,
+    # xccode-mcp, opencode serve user unit.
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
@@ -193,7 +202,8 @@ main() {
     step_opt
     step_fetch
     step_services
-    # Upcoming increments: marius profile, timers, guardrails, --restore.
+    step_profile
+    # Upcoming increments: timers, guardrails, --restore.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
