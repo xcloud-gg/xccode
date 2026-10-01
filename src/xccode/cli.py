@@ -13,6 +13,7 @@ from pathlib import Path
 from .advisor import AdvisorRecordError, validate_record
 from .approver import Approver, ApproverError, check_tty_safe
 from .audit import AuditLog
+from .doctor import Host, gather_passwd_group, render, run_checks
 from .gate import GateRefused, execute_plan
 from .guardrails import apply, load_config, parse_passwd, plan
 from .hashing import short
@@ -185,6 +186,37 @@ def cmd_guard(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """Read-only check of the installation invariants; the fresh-host acceptance gate (B-50)."""
+    etc = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
+    state = Path(os.environ.get("XCCODE_STATE", "/var/lib/xcloud/xccode"))
+    opt = Path("/opt/xcloud/xccode")
+    passwd, gid_to_group, members = gather_passwd_group(
+        Path("/etc/passwd").read_text(), Path("/etc/group").read_text()
+    )
+    candidates = [
+        str(etc), str(state), str(opt),
+        str(etc / "nft" / "xccode.nft"),
+        str(etc / "audit" / "xccode.rules"),
+    ]
+    aios = passwd.get("aios")
+    if aios is not None:
+        candidates.append(f"{etc}/systemd/user@{aios[0]}.service.d/40-xccode-paths.conf")
+    existing = frozenset(p for p in candidates if Path(p).exists())
+    host = Host(
+        passwd=passwd,
+        gid_to_group=gid_to_group,
+        members=members,
+        existing=existing,
+        etc_dir=str(etc),
+        state_dir=str(state),
+        opt_dir=str(opt),
+    )
+    checks = run_checks(host)
+    print(render(checks))
+    return 0 if all(c.ok for c in checks) else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -208,6 +240,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--config", type=Path, default=ETC / "guardrails.toml")
     g.add_argument("--check", action="store_true", help="preview without writing")
     g.set_defaults(fn=cmd_guard)
+    d = sub.add_parser("doctor", help="verify the installation invariants (B-50)")
+    d.set_defaults(fn=cmd_doctor)
     args = ap.parse_args(argv)
     return args.fn(args)
 
