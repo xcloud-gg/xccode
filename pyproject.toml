@@ -7,7 +7,10 @@ name = "xccode"
 version = "0.0.1"
 description = "Standalone coding stack with an operations profile and a P3 approval gate"
 requires-python = ">=3.13"
-dependencies = ["argon2-cffi>=23.1"]
+dependencies = ["argon2-cffi>=23.1", "fastapi>=0.115", "uvicorn>=0.30"]
+
+[project.optional-dependencies]
+test = ["pytest", "ruff", "httpx"]
 
 [project.scripts]
 xccode = "xccode.cli:main"
