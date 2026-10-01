@@ -14,6 +14,7 @@ from .advisor import AdvisorRecordError, validate_record
 from .approver import Approver, ApproverError, check_tty_safe
 from .audit import AuditLog
 from .gate import GateRefused, execute_plan
+from .guardrails import apply, load_config, parse_passwd, plan
 from .hashing import short
 from .store import AdvisorStore, ApprovalStore, PlanStore, StoreError
 from .tiers import classify, classify_plan
@@ -163,6 +164,27 @@ def cmd_approve(args) -> int:
         return 2
 
 
+def cmd_guard(args) -> int:
+    """Render and (unless --check) write guardrail layers 2, 3 and 6 for existing accounts."""
+    etc = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
+    cfg = load_config(args.config)
+    accounts = parse_passwd(Path("/etc/passwd").read_text())
+    writes = plan(cfg, accounts, etc)
+    if args.check:
+        for w in writes:
+            print(f"# {w.path}")
+            print(w.content, end="" if w.content.endswith("\n") else "\n")
+        if not writes:
+            print("# nothing to write (no aiOS or xcloud account on this host yet)")
+        return 0
+    written = apply(cfg, accounts, etc)
+    for p in written:
+        print(f"wrote {p}")
+    if not written:
+        print("nothing to write (no aiOS or xcloud account on this host yet)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -181,6 +203,11 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("target")
     a.add_argument("--allow-unsafe-tty", action="store_true")
     a.set_defaults(fn=cmd_approve)
+    g = sub.add_parser("guard", help="render/write guardrail layers 2, 3 and 6 (§6.9)")
+    g.add_argument("action", choices=["apply"])
+    g.add_argument("--config", type=Path, default=ETC / "guardrails.toml")
+    g.add_argument("--check", action="store_true", help="preview without writing")
+    g.set_defaults(fn=cmd_guard)
     args = ap.parse_args(argv)
     return args.fn(args)
 
