@@ -48,6 +48,22 @@ def test_check_is_dry_run_and_touches_nothing(tmp_path):
     assert not (tmp_path / "systemd").exists()
 
 
+def test_check_shows_fetch_when_release_given(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check", "--release", "v1.0.0",
+        env={"XCCODE_ETC": str(tmp_path / "etc")},
+    )
+    assert "would: fetch + verify release v1.0.0" in r.stdout
+
+
+def test_check_skips_fetch_without_release(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_ETC": str(tmp_path / "etc")},
+    )
+    assert "skip: no --release" in r.stdout
+
+
 def test_check_reflects_existing_files(tmp_path):
     etc = tmp_path / "etc" / "opencode"
     etc.mkdir(parents=True)

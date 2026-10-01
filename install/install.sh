@@ -149,13 +149,29 @@ step_opt() {
 EOF
 }
 
+# --- 4. signed release: download, verify, extract into /opt/xcloud/xccode ---------
+step_fetch() {
+    if [ -z "$RELEASE" ]; then
+        echo "skip: no --release (a real install needs an explicit signed tag; never main/latest)"
+        return 0
+    fi
+    RELEASE_URL="${RELEASE_URL:-https://github.com/xc0-sh/xccode/releases/download}"
+    SIGNING_KEY="${XCCODE_SIGNING_KEY:-$ETC/signing-key.asc}"
+    if [ "$CHECK" = 1 ]; then
+        echo "would: fetch + verify release $RELEASE into $OPT"
+    else
+        sh "$(dirname "$0")/fetch-release.sh" --release "$RELEASE" --url "$RELEASE_URL" \
+            --out "$OPT" --keyring "$SIGNING_KEY"
+    fi
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
     step_packages
     step_opt
-    # Upcoming increments: signed-release fetch + verify, services, marius profile, timers,
-    # guardrails, --restore.
+    step_fetch
+    # Upcoming increments: services, marius profile, timers, guardrails, --restore.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
