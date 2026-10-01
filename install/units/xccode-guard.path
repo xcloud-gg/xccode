@@ -1,0 +1,9 @@
+[Unit]
+Description=re-apply xccode guardrails when accounts change
+
+[Path]
+PathChanged=/etc/passwd
+PathChanged=/etc/group
+
+[Install]
+WantedBy=multi-user.target

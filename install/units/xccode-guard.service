@@ -1,0 +1,6 @@
+[Unit]
+Description=xccode guardrails apply
+
+[Service]
+Type=oneshot
+ExecStart=/opt/xcloud/xccode/venv/bin/xccode guard apply --config /etc/xcloud/xccode/guardrails.toml

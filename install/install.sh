@@ -181,9 +181,15 @@ step_fetch() {
 
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
-    for unit in xcroute; do
-        copy_file "$(dirname "$0")/units/$unit.service" "$SYSTEMD/$unit.service"
+    units="$(dirname "$0")/units"
+    for unit in xcroute.service xccode-guard.service xccode-guard.path; do
+        copy_file "$units/$unit" "$SYSTEMD/$unit"
     done
+}
+
+# --- 7. guardrails: render + write layers for the accounts that exist --------------
+step_guard() {
+    run "xccode guard apply" "$OPT/venv/bin/xccode" guard apply --config "$ETC/guardrails.toml"
 }
 
 # --- 6. operator profile: xcc launcher (OpenCode profile, OAC, skills next) --------
@@ -203,7 +209,8 @@ main() {
     step_fetch
     step_services
     step_profile
-    # Upcoming increments: timers, guardrails, --restore.
+    step_guard
+    # Upcoming increments: timers, --restore.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
