@@ -217,6 +217,19 @@ def cmd_doctor(args) -> int:
     return 0 if all(c.ok for c in checks) else 1
 
 
+def cmd_serve(args) -> int:
+    """Run the xcroute HTTP server — the `xcroute.service` exec (§6.4.4)."""
+    import uvicorn  # only serve needs the ASGI server
+
+    from .xcroute.http import create_app
+    from .xcroute.serve import build_router, load_config
+
+    cfg = load_config(Path(args.config))
+    router = build_router(cfg)
+    uvicorn.run(create_app(router), host=args.host, port=args.port)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -242,6 +255,11 @@ def main(argv: list[str] | None = None) -> int:
     g.set_defaults(fn=cmd_guard)
     d = sub.add_parser("doctor", help="verify the installation invariants (B-50)")
     d.set_defaults(fn=cmd_doctor)
+    srv = sub.add_parser("serve", help="run the xcroute HTTP server on 127.0.0.1:18080 (§6.4.4)")
+    srv.add_argument("--config", type=Path, default=ETC / "serve.toml")
+    srv.add_argument("--host", default="127.0.0.1")
+    srv.add_argument("--port", type=int, default=18080)
+    srv.set_defaults(fn=cmd_serve)
     args = ap.parse_args(argv)
     return args.fn(args)
 
