@@ -136,15 +136,15 @@ EOF
 
 # --- 2. packages (Debian main only); gitleaks from the signed release (step 4) --
 step_packages() {
-    for pkg in bubblewrap restic auditd uv; do
+    for pkg in bubblewrap restic auditd; do
         if dpkg -s "$pkg" >/dev/null 2>&1; then
             echo "already: package $pkg"
         else
             run "apt-get install -y $pkg" apt-get install -y "$pkg"
         fi
     done
-    # gitleaks is installed from its pinned release binary, not a Debian package (§6.11).
-    # Done in the signed-release fetch step (a later increment).
+    # `uv` is not a Debian package: it is installed into the venv from the signed release, and
+    # gitleaks from its pinned release binary (§6.11). Both land via the fetch step.
 }
 
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
@@ -179,6 +179,23 @@ step_fetch() {
     fi
 }
 
+# --- 4b. venv: build xccode from the extracted source ----------------------------
+step_venv() {
+    src="$OPT/src"
+    if [ -x "$OPT/venv/bin/xccode" ]; then
+        echo "already: venv"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: create venv + pip install xccode from $src"
+        return 0
+    fi
+    echo ">> create venv"
+    python3 -m venv "$OPT/venv"
+    echo ">> pip install xccode"
+    "$OPT/venv/bin/pip" install --quiet "$src"
+}
+
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
     units="$(dirname "$0")/units"
@@ -207,6 +224,7 @@ main() {
     step_packages
     step_opt
     step_fetch
+    step_venv
     step_services
     step_profile
     step_guard

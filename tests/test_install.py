@@ -72,6 +72,14 @@ def test_check_shows_service_install(tmp_path):
     assert f"would: install {tmp_path / 'systemd' / 'xcroute.service'}" in r.stdout
 
 
+def test_check_shows_venv_when_release_given(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check", "--release", "v1.0.0",
+        env={"XCCODE_OPT": str(tmp_path / "opt")},
+    )
+    assert "would: create venv + pip install xccode" in r.stdout
+
+
 def test_check_shows_launcher_install(tmp_path):
     r = _run(
         "--operator", "marius", "--check",

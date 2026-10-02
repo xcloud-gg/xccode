@@ -97,7 +97,7 @@ def test_fetch_verify_extract(tmp_path):
     r = _run(tmp_path, tag, out, src)
     assert r.returncode == 0, r.stderr
     assert "extracted" in r.stdout
-    assert (out / "xccode-release" / "payload.txt").read_text() == "release payload\n"
+    assert (out / "src" / "xccode-release" / "payload.txt").read_text() == "release payload\n"
 
 
 def test_tampered_release_refused(tmp_path):
