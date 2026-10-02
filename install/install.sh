@@ -175,7 +175,7 @@ step_fetch() {
         echo "skip: no --release (a real install needs an explicit signed tag; never main/latest)"
         return 0
     fi
-    RELEASE_URL="${RELEASE_URL:-https://github.com/xc0-sh/xccode/releases/download}"
+    RELEASE_URL="${RELEASE_URL:-https://github.com/xcloud-gg/xccode/releases/download}"
     SIGNING_KEY="${XCCODE_SIGNING_KEY:-$ETC/signing-key.asc}"
     if [ "$CHECK" = 1 ]; then
         echo "would: fetch + verify release $RELEASE into $OPT"
