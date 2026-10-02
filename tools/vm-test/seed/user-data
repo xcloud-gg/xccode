@@ -1,0 +1,27 @@
+#cloud-config
+# B-50 VM test: boot a fresh Debian 13, run install.sh against a signed test release served by the
+# host, then xccode doctor. The host is reached at the guest's default gateway (the libvirt NAT
+# bridge), so no private address is committed here.
+users:
+  - name: marius
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+runcmd:
+  - systemctl stop apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+  - systemctl stop --no-block apt-daily.service apt-daily-upgrade.service unattended-upgrades.service 2>/dev/null || true
+  - pkill -9 -f 'apt-get|/usr/lib/apt' 2>/dev/null || true
+  - sleep 5
+  - rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock 2>/dev/null || true
+  - printf 'Acquire::ForceIPv4 "true";\nAcquire::Retries "3";\n' > /etc/apt/apt.conf.d/99xccode
+  - apt-get update -y
+  - HOST=$(ip route | awk '/default/ {print $3}')
+  - mkdir -p /tmp/xc /etc/xcloud/xccode
+  - curl -fsSL -o /tmp/xc/repo.tgz "http://$HOST:8000/repo.tgz"
+  - tar -xzf /tmp/xc/repo.tgz -C /tmp/xc
+  - curl -fsSL -o /etc/xcloud/xccode/signing-key.asc "http://$HOST:8000/release/test/keyring.gpg"
+  - RELEASE_URL="http://$HOST:8000/release" sh /tmp/xc/install/install.sh --operator marius --release test > /tmp/xc/install.log 2>&1
+  - echo "INSTALL_EXIT=$?" > /tmp/xc/result.txt
+  - cat /tmp/xc/install.log >> /tmp/xc/result.txt
+  - /opt/xcloud/xccode/venv/bin/xccode doctor >> /tmp/xc/result.txt 2>&1
+  - echo "XCCDONE" >> /tmp/xc/result.txt
+  - curl -fsSL -X POST --data-binary @/tmp/xc/result.txt "http://$HOST:8000/result" || true

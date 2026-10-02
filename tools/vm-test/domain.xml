@@ -1,0 +1,42 @@
+<domain type='kvm'>
+  <name>xccode-test</name>
+  <memory unit='MiB'>2048</memory>
+  <vcpu>2</vcpu>
+  <os>
+    <type arch='x86_64'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <features><acpi/><apic/></features>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='/var/tmp/xccode-vm-test/debian-13-generic-amd64.qcow2'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/tmp/xccode-vm-test/seed.iso'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+    </disk>
+    <interface type='network'>
+      <source network='default'/>
+      <model type='virtio'/>
+    </interface>
+    <serial type='file'>
+      <source path='/var/tmp/xccode-vm-test/console.log'/>
+      <target type='isa-serial' port='0'/>
+    </serial>
+    <console type='file'>
+      <source path='/var/tmp/xccode-vm-test/console.log'/>
+      <target type='serial' port='0'/>
+    </console>
+    <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
+    <video><model type='qxl'/></video>
+  </devices>
+</domain>
