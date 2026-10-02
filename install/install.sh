@@ -29,7 +29,7 @@ EOF
 
 OPERATOR=""
 RESTORE=""
-CHECK=0
+CHECK=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --operator) OPERATOR="$2"; shift 2 ;;
@@ -104,7 +104,7 @@ step_account() {
         echo "already: account xccode"
     else
         run "useradd xccode (system, nologin)" \
-            useradd --system --no-create-home --shell /usr/sbin/nologin --uid 997 xccode
+            useradd --system --no-create-home --shell /usr/sbin/nologin xccode
     fi
     if getent group xccode-users >/dev/null 2>&1; then
         echo "already: group xccode-users"
