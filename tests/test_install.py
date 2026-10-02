@@ -98,3 +98,25 @@ def test_check_reflects_existing_files(tmp_path):
     )
     assert "already: dir " in r.stdout
     assert "already: " + str(etc / "opencode.json") in r.stdout
+
+
+def test_check_skips_restore_without_repo(tmp_path):
+    r = _run("--operator", "marius", "--check", env={"XCCODE_ETC": str(tmp_path / "etc")})
+    assert "skip: no --restore" in r.stdout
+
+
+def test_check_shows_restore_with_repo(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check", "--restore", "/backup/xccode-repo",
+        env={"XCCODE_STATE": str(tmp_path / "state")},
+    )
+    assert "would: restic restore /backup/xccode-repo latest" in r.stdout
+
+
+def test_check_shows_backup_unit_and_nft_unit(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(tmp_path / "systemd")},
+    )
+    assert f"would: install {tmp_path / 'systemd' / 'xccode-backup.timer'}" in r.stdout
+    assert f"would: install {tmp_path / 'systemd' / 'xccode-nft.service'}" in r.stdout

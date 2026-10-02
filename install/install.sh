@@ -150,7 +150,7 @@ step_packages() {
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
 step_opt() {
     ensure_dir "$OPT" "root:root" 0755
-    for sub in opencode venv hermes oac opencode-plugins; do
+    for sub in opencode venv hermes oac opencode-plugins bin; do
         ensure_dir "$OPT/$sub" "root:root" 0755
     done
     ensure_dir "$ETC" "root:root" 0755
@@ -160,6 +160,12 @@ step_opt() {
   "share": "disabled",
   "autoupdate": false
 }
+EOF
+    copy_file "$(dirname "$0")/xccode-backup.sh" "$OPT/bin/xccode-backup.sh" 0755
+    write_file "$ETC/backup.toml" <<'EOF'
+# xccode backup target (XC-DES-001 §6.11). Filled by the operator via SOPS — a second disk or
+# USB drive until urd exists. An empty repository means the xccode-backup timer does nothing.
+repository = ""
 EOF
 }
 
@@ -199,14 +205,41 @@ step_venv() {
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
     units="$(dirname "$0")/units"
-    for unit in xcroute.service xccode-guard.service xccode-guard.path; do
+    for unit in xcroute.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
         copy_file "$units/$unit" "$SYSTEMD/$unit"
+    done
+    if [ "$CHECK" = 1 ]; then
+        echo "would: systemctl daemon-reload + enable units"
+        return 0
+    fi
+    systemctl daemon-reload
+    for unit in xcroute.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
+        systemctl enable "$unit" >/dev/null 2>&1 || true
     done
 }
 
 # --- 7. guardrails: render + write layers for the accounts that exist --------------
 step_guard() {
     run "xccode guard apply" "$OPT/venv/bin/xccode" guard apply --config "$ETC/guardrails.toml"
+    if [ "$CHECK" != 1 ]; then
+        systemctl start xccode-nft.service >/dev/null 2>&1 || true
+    fi
+}
+
+# --- 8. restore: bring back memory, skills, rules, routing history, bench results ----
+step_restore() {
+    if [ -z "$RESTORE" ]; then
+        echo "skip: no --restore"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: restic restore $RESTORE latest -> $STATE"
+        return 0
+    fi
+    echo ">> restic restore"
+    restic -r "$RESTORE" restore latest --target / --include "$STATE" \
+        || { echo "install.sh: --restore failed" >&2; exit 1; }
+    chown -R xccode:xccode "$STATE"
 }
 
 # --- 6. operator profile: xcc launcher (OpenCode profile, OAC, skills next) --------
@@ -228,7 +261,8 @@ main() {
     step_services
     step_profile
     step_guard
-    # Upcoming increments: timers, --restore.
+    step_restore
+    # Upcoming increments: collect/learn/bench timers (as their commands land), full profile.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else

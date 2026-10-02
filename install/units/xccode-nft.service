@@ -1,0 +1,12 @@
+[Unit]
+Description=xccode nftables table (inet xccode)
+After=nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/xcloud/xccode/nft/xccode.nft
+ExecReload=/usr/sbin/nft -f /etc/xcloud/xccode/nft/xccode.nft
+
+[Install]
+WantedBy=multi-user.target

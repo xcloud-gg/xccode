@@ -1,0 +1,7 @@
+[Unit]
+Description=xccode restic backup
+ConditionPathExists=/etc/xcloud/xccode/backup.toml
+
+[Service]
+Type=oneshot
+ExecStart=/opt/xcloud/xccode/bin/xccode-backup.sh

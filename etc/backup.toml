@@ -1,0 +1,3 @@
+# xccode backup target (XC-DES-001 §6.11). Filled by the operator via SOPS — a second disk or
+# USB drive until urd exists. An empty repository means the xccode-backup timer does nothing.
+repository = ""
