@@ -11,7 +11,7 @@ version = ""
 
 [openagentscontrol]
 version = ""
-commit = ""
+commit = "37ca233fa5597a5abb90cba73165deafffe0344f"
 
 [gitleaks]
 version = ""

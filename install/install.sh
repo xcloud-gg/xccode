@@ -259,13 +259,27 @@ step_profile() {
     dst="/home/$OPERATOR/.local/bin/xcc"
     ensure_dir "/home/$OPERATOR/.local/bin" "$OPERATOR:$OPERATOR" 0755
     copy_file "$(dirname "$0")/xcc" "$dst" 0755
-    # OpenCode profile (provider -> xcroute, model xc/auto, xccode-mcp): the xcc launcher
+    # OpenCode profile (provider -> xcroute, model xc/auto, xccode-mcp, OAC agents). The xcc launcher
     # points OPENCODE_CONFIG here, so xccode's OpenCode never reads another install's config.
     prof="/home/$OPERATOR/.config/xccode/opencode"
     ensure_dir "$prof" "$OPERATOR:$OPERATOR" 0755
-    copy_file "$(dirname "$0")/../etc/opencode/profile.json" "$prof/opencode.json" 0644
+    oac_commit=$(sed -n '/^\[openagentscontrol\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^commit = "\(.*\)"$/\1/p')
+    if [ -n "$oac_commit" ] && [ "$CHECK" != 1 ]; then
+        ensure_dir "$OPT/oac" "root:root" 0755
+        if [ ! -d "$OPT/oac/.git" ]; then
+            echo ">> fetch OpenAgentsControl"
+            git clone --depth 1 https://github.com/darrenhinde/OpenAgentsControl.git "$OPT/oac" >/dev/null 2>&1 || true
+            (cd "$OPT/oac" && git fetch --depth 1 origin "$oac_commit" >/dev/null 2>&1 && git checkout -q "$oac_commit") || true
+        fi
+        echo ">> write profile with OAC agents"
+        "$OPT/venv/bin/xccode" oac --oac-dir "$OPT/oac" \
+            --profile "$(dirname "$0")/../etc/opencode/profile.json" --out "$prof/opencode.json"
+    else
+        copy_file "$(dirname "$0")/../etc/opencode/profile.json" "$prof/opencode.json" 0644
+    fi
     chown "$OPERATOR:$OPERATOR" "$prof/opencode.json" 2>/dev/null || true
-    # Upcoming: OAC agents, plugins, native skills, opencode serve user unit.
+    # Upcoming: plugins, native skills, opencode serve user unit.
 }
 
 main() {

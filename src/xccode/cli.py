@@ -238,6 +238,18 @@ def cmd_mcp(args) -> int:
     return 0
 
 
+def cmd_oac(args) -> int:
+    """Generate the xccode OpenCode profile with OAC agents merged in (§4.2)."""
+    import json
+
+    from .oac import agents_to_config
+
+    base = json.loads(Path(args.profile).read_text())
+    base["agent"] = agents_to_config(Path(args.oac_dir))
+    Path(args.out).write_text(json.dumps(base, indent=2) + "\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -270,6 +282,11 @@ def main(argv: list[str] | None = None) -> int:
     srv.set_defaults(fn=cmd_serve)
     m = sub.add_parser("mcp", help="run the xccode MCP server over stdio (§4.11)")
     m.set_defaults(fn=cmd_mcp)
+    o = sub.add_parser("oac", help="generate the OpenCode profile with OAC agents merged (§4.2)")
+    o.add_argument("--oac-dir", required=True)
+    o.add_argument("--profile", required=True)
+    o.add_argument("--out", required=True)
+    o.set_defaults(fn=cmd_oac)
     args = ap.parse_args(argv)
     return args.fn(args)
 
