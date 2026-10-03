@@ -380,8 +380,10 @@ step_tei() {
         git clone --depth 1 --branch "$tei_ver" \
             https://github.com/huggingface/text-embeddings-inference.git "$OPT/tei"
     fi
-    echo ">> cargo install text-embeddings-router (mkl)"
-    (cd "$OPT/tei" && cargo install --path router -F mkl --root "$OPT/tei")
+    echo ">> cargo install text-embeddings-router (ort)"
+    # `-F ort` (ONNX Runtime, the README-recommended CPU backend): `-F mkl` fails to link the
+    # Intel BLAS symbols (undefined dgemm_/sgemm_/vsAdd…) and would OOM/slow the install.
+    (cd "$OPT/tei" && cargo install --path router -F ort --root "$OPT/tei")
     ensure_dir "$STATE/tei" "xccode:xccode" 0750
 }
 
