@@ -1,4 +1,4 @@
-"""Assemble a Router from an operator-owned config and run it (XC-DES-001 §6.4.4, §6.5).
+"""Assemble a Router from an operator-owned config and run it (XC-CODE-001 §4.4, §4.5).
 
 The public repository ships no tokens, budget caps, or OmniRoute address: they arrive in a TOML
 file the installer writes from SOPS. Missing values fall back to safe defaults (no tokens -> every

@@ -1,4 +1,4 @@
-"""Budget gate (§6.5 step 4): per request, per day, per provider, per agent. Integer micro-USD."""
+"""Budget gate (§5 step 4): per request, per day, per provider, per agent. Integer micro-USD."""
 
 from __future__ import annotations
 

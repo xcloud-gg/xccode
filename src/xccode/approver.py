@@ -1,4 +1,4 @@
-"""The operator's approver for P3 plans (XC-DES-001 §25.5, B-46).
+"""The operator's approver for P3 plans (XC-CODE-001 §15.5, B-46).
 
 What it enforces, in code:
   * the password is verified against an argon2id hash that only the `xccode` account can read;

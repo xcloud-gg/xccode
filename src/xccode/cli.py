@@ -166,7 +166,7 @@ def cmd_approve(args) -> int:
 
 
 def cmd_guard(args) -> int:
-    """Render and (unless --check) write guardrail layers 2, 3 and 6 for existing accounts."""
+    """Render and (unless --check) write guardrail layers 2, 3 and 4 for existing accounts."""
     etc = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
     cfg = load_config(args.config)
     accounts = parse_passwd(Path("/etc/passwd").read_text())
@@ -218,7 +218,7 @@ def cmd_doctor(args) -> int:
 
 
 def cmd_serve(args) -> int:
-    """Run the xcroute HTTP server — the `xcroute.service` exec (§6.4.4)."""
+    """Run the xcroute HTTP server — the `xcroute.service` exec (§4.4)."""
     import uvicorn  # only serve needs the ASGI server
 
     from .xcroute.http import create_app
@@ -248,14 +248,14 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("target")
     a.add_argument("--allow-unsafe-tty", action="store_true")
     a.set_defaults(fn=cmd_approve)
-    g = sub.add_parser("guard", help="render/write guardrail layers 2, 3 and 6 (§6.9)")
+    g = sub.add_parser("guard", help="render/write guardrail layers 2, 3 and 4 (§9)")
     g.add_argument("action", choices=["apply"])
     g.add_argument("--config", type=Path, default=ETC / "guardrails.toml")
     g.add_argument("--check", action="store_true", help="preview without writing")
     g.set_defaults(fn=cmd_guard)
     d = sub.add_parser("doctor", help="verify the installation invariants (B-50)")
     d.set_defaults(fn=cmd_doctor)
-    srv = sub.add_parser("serve", help="run the xcroute HTTP server on 127.0.0.1:18080 (§6.4.4)")
+    srv = sub.add_parser("serve", help="run the xcroute HTTP server on 127.0.0.1:18080 (§4.4)")
     srv.add_argument("--config", type=Path, default=ETC / "serve.toml")
     srv.add_argument("--host", default="127.0.0.1")
     srv.add_argument("--port", type=int, default=18080)

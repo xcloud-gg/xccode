@@ -32,7 +32,7 @@ def test_own_compression_disabled():
 
 
 def test_template_carries_no_provider_credentials():
-    # The public repository never ships a key, credential, or endpoint (XC-DES-001 §25.3): the
+    # The public repository never ships a key, credential, or endpoint (XC-CODE-001 §15.3): the
     # template only describes structure and leaves providers to the operator.
     text = TEMPLATE.read_text()
     assert "sk-" not in text

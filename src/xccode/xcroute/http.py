@@ -1,9 +1,9 @@
-"""FastAPI HTTP layer for xcroute (XC-DES-001 §6.4.4, §6.5).
+"""FastAPI HTTP layer for xcroute (XC-CODE-001 §4.4, §4.5).
 
 Wraps the offline `Router` with an OpenAI-compatible `/v1/chat/completions` endpoint and the
 memory/learning/events doors. Authentication is `Authorization: Bearer <token>`; the router maps
 the token to an agent name (only digests are stored). The router keeps no network code — the
-provider and Jev decider stay injected — so the app is testable against a mock provider.
+provider stays injected — so the app is testable against a mock provider.
 """
 
 from __future__ import annotations

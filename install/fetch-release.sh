@@ -1,5 +1,5 @@
 #!/bin/sh
-# fetch-release.sh — download, verify, and extract a signed xccode release (XC-DES-001 §6.11).
+# fetch-release.sh — download, verify, and extract a signed xccode release (XC-CODE-001 §11).
 #     fetch-release.sh --release <tag> --url <base> --out <dir> --keyring <file> [--check]
 # Never runs on an unverified archive: download, verify-release.sh, then extract.
 set -eu

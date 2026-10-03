@@ -1,5 +1,5 @@
 #!/bin/sh
-# verify-release.sh — verify a signed xccode release before install (XC-DES-001 §6.11 "Distribution").
+# verify-release.sh — verify a signed xccode release before install (XC-CODE-001 §11 "Distribution").
 #     verify-release.sh <tarball> <sha256sums> <signature> <keyring>
 # Exits non-zero on any checksum or signature mismatch; reads nothing from the network.
 set -eu

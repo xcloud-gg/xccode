@@ -1,5 +1,5 @@
 #!/bin/sh
-# install.sh — install xccode on a fresh host (XC-DES-001 §6.11, B-13, B-50).
+# install.sh — install xccode on a fresh host (XC-CODE-001 §11, B-13, B-50).
 #
 # Run as root, never piped into a shell:
 #     sudo ./install.sh --operator marius [--release <tag>] [--restore <restic repo>] [--check]
@@ -144,7 +144,7 @@ step_packages() {
         fi
     done
     # `uv` is not a Debian package: it is installed into the venv from the signed release, and
-    # gitleaks from its pinned release binary (§6.11). Both land via the fetch step.
+    # gitleaks from its pinned release binary (§11). Both land via the fetch step.
 }
 
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
@@ -163,7 +163,7 @@ step_opt() {
 EOF
     copy_file "$(dirname "$0")/xccode-backup.sh" "$OPT/bin/xccode-backup.sh" 0755
     write_file "$ETC/backup.toml" <<'EOF'
-# xccode backup target (XC-DES-001 §6.11). Filled by the operator via SOPS — a second disk or
+# xccode backup target (XC-CODE-001 §11). Filled by the operator via SOPS — a second disk or
 # USB drive until urd exists. An empty repository means the xccode-backup timer does nothing.
 repository = ""
 EOF

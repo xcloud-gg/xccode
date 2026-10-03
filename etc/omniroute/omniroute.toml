@@ -1,4 +1,4 @@
-# xccode private OmniRoute — config template (XC-DES-001 §6.5, §6.14).
+# xccode private OmniRoute — config template (XC-CODE-001 §4.5, §14).
 #
 # This is the canonical source of the xccode-specific values for the private OmniRoute instance;
 # the installer renders it into the pinned OmniRoute release's native config format at install time
@@ -9,7 +9,7 @@
 # Four pools, two providers deep, loopback only, own compression disabled (aiOS §8.6, D28).
 
 [server]
-bind = "127.0.0.1"   # loopback only: xcroute reaches the API, marius the dashboard (§6.14)
+bind = "127.0.0.1"   # loopback only: xcroute reaches the API, marius the dashboard (§14)
 port = 18128
 
 [compression]
@@ -17,7 +17,7 @@ enabled = false      # the Caveman skill is the only compression layer; two loss
 
 [[pools]]
 name = "coding-strong"
-providers = 2        # failover within the pool; nothing below this floor ever touches code (§6.4.4)
+providers = 2        # failover within the pool; nothing below this floor ever touches code (§4.4)
 
 [[pools]]
 name = "coding-fast"

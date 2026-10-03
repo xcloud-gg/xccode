@@ -1,4 +1,4 @@
-# xccode version pins (XC-DES-001 §6.11). Filled by the release process: a component with an
+# xccode version pins (XC-CODE-001 §11). Filled by the release process: a component with an
 # empty version, or an empty required checksum/digest, fails `xccode.versions.validate` and cannot
 # be shipped, installed, or upgraded to. Never hand-edit the checksums; record them from the release.
 

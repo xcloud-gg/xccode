@@ -1,4 +1,4 @@
-"""OmniRoute provider (XC-DES-001 §6.5): forward a completion to the private OmniRoute instance.
+"""OmniRoute provider (XC-CODE-001 §4.5): forward a completion to the private OmniRoute instance.
 
 OmniRoute is OpenAI-compatible; the pool name is sent as the model so OmniRoute routes within the
 pool. No provider key lives here — OmniRoute holds them — so this module only carries the HTTP

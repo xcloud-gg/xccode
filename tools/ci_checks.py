@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repository checks that CI runs on every pull request (public-repository rule, XC-DES-001 §25.3).
+"""Repository checks that CI runs on every pull request (public-repository rule, XC-CODE-001 §15.3).
 
 1. secret scan: private-key blocks, well-known token shapes, assignments of long literals to
    secret-looking names;

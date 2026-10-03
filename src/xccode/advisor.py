@@ -2,7 +2,7 @@
 
 The advisor informs; it cannot approve. The record has no approval field and unknown fields are
 refused, so no code path can turn an advisor answer into an approval (B-47). The advisor runs on the
-`coding-strong` pool and never on a Jev decision (E14).
+`coding-strong` pool (§15.6).
 """
 
 from __future__ import annotations

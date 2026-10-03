@@ -1,4 +1,4 @@
-"""Pinned component versions for the installer and `xccode upgrade` (XC-DES-001 §6.11).
+"""Pinned component versions for the installer and `xccode upgrade` (XC-CODE-001 §11).
 
 `etc/versions.lock` (TOML) lists every component with its version and, where the spec demands one, a
 checksum or digest. A release that leaves a required pin empty fails `validate`, so an unpinned

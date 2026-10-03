@@ -1,5 +1,5 @@
 #!/bin/sh
-# make-release.sh — build a signed test release for the B-50 VM test (XC-DES-001 §6.11).
+# make-release.sh — build a signed test release for the B-50 VM test (XC-CODE-001 §11).
 #
 # Mirrors docs/release.md, but with a throwaway test key (never the operator's key) and no git tag:
 #     make-release.sh --release test --out release

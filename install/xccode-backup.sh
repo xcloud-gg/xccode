@@ -1,5 +1,5 @@
 #!/bin/sh
-# xccode-backup.sh — daily restic backup of xccode state (XC-DES-001 §6.11).
+# xccode-backup.sh — daily restic backup of xccode state (XC-CODE-001 §11).
 # The repository comes from /etc/xcloud/xccode/backup.toml (filled by the operator via SOPS).
 # No-op when the repository is unset, so the timer is safe before it is configured.
 set -eu

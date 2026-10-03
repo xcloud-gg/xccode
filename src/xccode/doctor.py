@@ -1,4 +1,4 @@
-"""`xccode doctor`: verify an installation against its invariants (XC-DES-001 §25.3, §6.9, B-49).
+"""`xccode doctor`: verify an installation against its invariants (XC-CODE-001 §15.3, §9, B-49).
 
 Read-only. One line per check; exits non-zero when anything is red. The installer runs it after
 `install.sh`, and it is the acceptance gate for a fresh host (B-50: "`xccode doctor` is green").

@@ -1,4 +1,4 @@
-"""Repository markers (§6.4.4): `.xccode-secret` refuses, `.xccode-internal` forbids Jev."""
+"""Repository markers (§4.4): `.xccode-secret` refuses, `.xccode-internal` stays local-only."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 class RepoPolicy(Enum):
     NORMAL = "normal"
-    INTERNAL = "internal"  # rules decide; Jev is never called (E15)
-    SECRET = "secret"  # refused; xccode has no local model for SECRET work (E10)
+    INTERNAL = "internal"  # internal repository; rules decide, flagged in the routing event
+    SECRET = "secret"  # refused; xccode has no local model for SECRET work (§13)
 
 
 _RANK = {RepoPolicy.NORMAL: 0, RepoPolicy.INTERNAL: 1, RepoPolicy.SECRET: 2}

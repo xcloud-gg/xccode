@@ -1,10 +1,10 @@
-"""Routing events (§6.5 step 7): one row per turn. Prompt text is never stored, only its hash."""
+"""Routing events (§5 step 7): one row per turn. Prompt text is never stored, only its hash."""
 
 from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
@@ -13,7 +13,7 @@ class RoutingEvent:
     ts: str
     agent: str
     xc_agent_role: str
-    decider: str  # jev | rules | pinned | sticky | refused
+    decider: str  # rules | pinned | sticky | refused
     mode: str | None
     pool: str | None
     message_hash: str
@@ -24,7 +24,6 @@ class RoutingEvent:
     latency_ms: int = 0
     failover: bool = False
     outcome: str = "ok"  # ok | refused:<reason> | error:<kind>
-    shadow: dict[str, str] = field(default_factory=dict)  # other deciders' modes, for comparison
 
 
 class EventLog:

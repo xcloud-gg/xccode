@@ -1,4 +1,4 @@
-"""Guard-lite: outbound secret redaction (§6.4.7). Every outgoing message passes through here."""
+"""Guard-lite: outbound secret redaction (§4.6). Every outgoing message passes through here."""
 
 from __future__ import annotations
 

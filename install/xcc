@@ -1,5 +1,5 @@
 #!/bin/sh
-# xcc — launch OpenCode with xccode's own config directory (XC-DES-001 §6.14).
+# xcc — launch OpenCode with xccode's own config directory (XC-CODE-001 §4.1).
 # For marius only. Installed by install.sh as a wrapper; never piped into a shell.
 set -eu
 
@@ -7,7 +7,7 @@ set -eu
 OPENCODE_BIN="${XCCODE_OPENCODE:-opencode}"
 
 # xccode keeps its OpenCode state separate from any other OpenCode on the host, and never
-# self-updates (pins are owned by the release, XC-DES-001 §6.11).
+# self-updates (pins are owned by the release, XC-CODE-001 §11).
 export OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/xccode/opencode}"
 export OPENCODE_DISABLE_AUTOUPDATE="${OPENCODE_DISABLE_AUTOUPDATE:-1}"
 

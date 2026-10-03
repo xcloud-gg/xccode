@@ -1,4 +1,4 @@
-"""Turn detection, the rules baseline, the model floor, and pool scoring (§6.5 steps 2, 5, 6)."""
+"""Turn detection, the rules baseline, the model floor, and pool scoring (§5 steps 2, 5, 6)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 
-# Pool classes. `rank` is the floor ordering: a code change never goes below coding-strong (E11).
+# Pool classes. `rank` is the floor ordering: a code change never goes below coding-strong (§5).
 POOL_RANK = {"fast": 0, "coding-fast": 1, "coding-strong": 2, "reasoning": 2}
 MODE_POOLS = {
     "coding": ("coding-strong", "coding-fast"),
@@ -25,7 +25,7 @@ def message_hash(text: str) -> str:
 
 @dataclass(frozen=True)
 class Answers:
-    """Probabilities of the three yes/no questions (§6.4.5)."""
+    """Answers to the three yes/no questions the rules decider answers (§5 step 5)."""
 
     multi_step: float  # needs multi-step reasoning?
     code_change: float  # code change (vs. explanation)?
@@ -47,7 +47,7 @@ _REASON = re.compile(
 
 
 def rules_answers(message: str) -> Answers:
-    """Keyword baseline. Deliberately crude: it is the fallback and the shadow decider."""
+    """Keyword baseline. Deliberately crude: it is the only decider."""
     code = bool(_CODE.search(message))
     explain = bool(_EXPLAIN.search(message))
     reason = bool(_REASON.search(message))

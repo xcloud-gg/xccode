@@ -1,7 +1,7 @@
 # xccode release procedure
 
 Releases are **tagged and signed by the operator's key** — never by an agent, never from `main` or
-`latest`. `install.sh` then installs only from a signed tag (XC-DES-001 §6.11 "Distribution").
+`latest`. `install.sh` then installs only from a signed tag (XC-CODE-001 §11 "Distribution").
 
 ## One release
 

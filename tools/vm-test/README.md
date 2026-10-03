@@ -1,6 +1,6 @@
 # VM test (B-50)
 
-Reproduces the B-50 acceptance gate from XC-DES-001 §6.11: on a **fresh Debian 13** host,
+Reproduces the B-50 acceptance gate from XC-CODE-001 §11: on a **fresh Debian 13** host,
 `install.sh --operator <login> --release <tag>` installs end-to-end and `xccode doctor` is green.
 
 The test never touches a real host: it boots a checksum-verified Debian 13 cloud image under QEMU

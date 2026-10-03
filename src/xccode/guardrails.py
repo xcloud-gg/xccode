@@ -1,12 +1,11 @@
-"""Guardrails: aiOS and xccode never see each other (XC-DES-001 §6.9).
+"""Guardrails: aiOS and xccode never see each other (XC-CODE-001 §9).
 
-`xccode guard apply` renders layers 2, 3 and 6 for the accounts that exist on the host and
-writes them. Layer 1 (permissions) is set by the installer, layer 4 is aiOS's own policy, and
-layer 5 is the build agents' managed drop-in — none of those are written here. xccode installs
+`xccode guard apply` renders layers 2, 3 and 4 for the accounts that exist on the host and
+writes them. Layer 1 (permissions) is set by the installer and is not written here. xccode installs
 before aiOS and xcloud exist on a fresh thor, so rules are written only for accounts present in
 /etc/passwd; `xccode-guard.path` re-runs this whenever /etc/passwd changes.
 
-The public repository carries no mesh address, aiOS service port, or internal host name (§25.3):
+The public repository carries no mesh address, aiOS service port, or internal host name (§15.3):
 the internal values arrive in a config object the installer fills from /etc/xcloud/xccode.
 """
 
@@ -16,7 +15,7 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-# xccode's own loopback services (public, §25.3): xcroute, opencode, OmniRoute, OpenViking, TEI.
+# xccode's own loopback services (public, §15.3): xcroute, opencode, OmniRoute, OpenViking, TEI.
 XCCODE_PORTS: tuple[int, ...] = (18080, 18090, 18128, 18180, 18181)
 # The two services only the xccode account may reach: OpenViking (memory) and TEI (embedder).
 MEMORY_PORTS: tuple[int, ...] = (18180, 18181)
@@ -133,7 +132,7 @@ def render_aios_dropin(aios_uid: int) -> str:
 
 
 def render_audit_rules(accounts: dict[str, int]) -> str:
-    """Layer 6: auditd watches for any access to xccode state by aiOS or xcloud."""
+    """Layer 4: auditd watches for any access to xccode state by aiOS or xcloud."""
     lines: list[str] = []
     for name in ("aios", "xcloud"):
         uid = accounts.get(name)

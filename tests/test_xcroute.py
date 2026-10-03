@@ -160,14 +160,14 @@ class Spy:
         return Completion("ok", 10, 5, 1000)
 
 
-def make(tmp_path, jev=None, provider=None, healthy=ALL, per_day=10_000_000, roles=None):
+def make(tmp_path, provider=None, healthy=ALL, per_day=10_000_000, roles=None):
     return Router(
         auth=TokenAuth({"opencode": digest("tok"), "hermes": digest("hm")}),
         pools={p: PoolConfig("prov-" + p, 1000) for p in ALL},
         scores=SCORES, healthy=lambda: set(healthy),
         budget=BudgetGate(Limits(per_request=100_000, per_day=per_day,
                                  per_agent_day={"hermes": 1500})),
-        provider=provider or Spy(), events=EventLog(tmp_path / "x.db"), jev=jev,
+        provider=provider or Spy(), events=EventLog(tmp_path / "x.db"),
         role_by_prompt_hash=roles or {},
     ), tmp_path
 
@@ -201,44 +201,11 @@ def test_router_redacts_before_provider_and_event_has_no_prompt_text(tmp_path):
     assert ev["pool"] == "coding-strong" and ev["decider"] == "rules"
 
 
-def test_router_jev_used_when_confident(tmp_path):
-    r, _ = make(tmp_path, jev=lambda inp, t: Answers(0.95, 0.05, 0.05))
-    res = r.handle(req(text="fix it"))  # rules would say coding; Jev says reasoning
-    assert res.event.decider == "jev" and res.pool == "reasoning"
-    assert res.event.shadow == {"rules": "coding"}
-
-
-@pytest.mark.parametrize("jev", [
-    lambda inp, t: (_ for _ in ()).throw(TimeoutError()),
-    lambda inp, t: Answers(0.52, 0.48, 0.55),  # unsure
-])
-def test_router_jev_failure_or_unsure_falls_back_to_rules(tmp_path, jev):
-    r, _ = make(tmp_path, jev=jev)
-    res = r.handle(req(text="fix it"))
-    assert res.status == 200 and res.event.decider == "rules" and res.pool == "coding-strong"
-
-
-def test_router_internal_repo_never_calls_jev(tmp_path):
-    (tmp_path / ".xccode-internal").touch()
-    called = []
-    r, _ = make(tmp_path, jev=lambda i, t: called.append(1) or Answers(0.9, 0.9, 0.9))
-    res = r.handle(req(cwd=str(tmp_path)))
-    assert res.status == 200 and called == [] and res.event.decider == "rules"
-
-
-def test_router_jev_input_is_truncated_and_redacted(tmp_path):
-    seen = []
-    r, _ = make(tmp_path, jev=lambda i, t: seen.append(i) or Answers(0.1, 0.9, 0.1))
-    r.handle(req(text=AWS + " " + "x" * 5000))
-    assert len(seen[0]["message"].encode()) <= 2048 and AWS not in seen[0]["message"]
-
-
 def test_router_sticky_through_tool_loop_and_pinned_passthrough(tmp_path):
-    n = []
-    r, _ = make(tmp_path, jev=lambda i, t: n.append(1) or Answers(0.1, 0.9, 0.1))
+    r, _ = make(tmp_path)
     a = r.handle(req(text="fix it"))
     b = r.handle(req(text="fix it"))  # same user message: tool loop continues
-    assert (a.event.decider, b.event.decider) == ("jev", "sticky") and len(n) == 1
+    assert (a.event.decider, b.event.decider) == ("rules", "sticky")
     p = r.handle(req(text="explain", model="fast"))
     assert p.event.decider == "pinned" and p.pool == "fast"  # floor not applied to pinned
     assert r.handle(req(model="gpt-x")).status == 400

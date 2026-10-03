@@ -109,9 +109,9 @@ def test_advisor_record_for_a_different_plan_does_not_count(env):
         env.run(h)
 
 
-def test_advisor_on_jev_pool_is_invalid(env):
+def test_advisor_on_non_coding_strong_pool_is_invalid(env):
     h = env.plans.save(P3_PLAN)
-    env.advisors.save(advisor_record(h, pool="jev-1.13.0"))
+    env.advisors.save(advisor_record(h, pool="reasoning"))
     with pytest.raises(GateRefused, match="invalid"):
         env.run(h)
 
