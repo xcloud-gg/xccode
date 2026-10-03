@@ -18,7 +18,9 @@ from pathlib import Path
 from .hashing import canonical, sha256_hex
 from .xcroute.guard import redact
 
-_IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])")
+# `(?!\.?\d)` (rather than `(?![\d.])`) so an IP at the end of a sentence — "...192.0.2.1." —
+# is still caught, while a 5-octet run like "192.0.2.1.5" is not matched as a prefix.
+_IPV4 = re.compile(r"(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?!\.?\d)")
 _MAC = re.compile(r"(?<![0-9A-Fa-f])((?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2})(?![0-9A-Fa-f])")
 # Best-effort IPv6: a run of hex groups and colons; every candidate is validated with ipaddress.
 _IPV6 = re.compile(r"(?<![\w:])([0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,7})(?![\w:])")

@@ -51,6 +51,14 @@ def test_guard_clean_text_untouched():
     assert r.text == "please rename the function foo to bar" and r.hits == ()
 
 
+def test_guard_redacts_age_and_vault_secrets():
+    age = "AGE-SECRET-KEY-1" + "A" * 50
+    hvs = "hvs." + "a" * 20
+    r = redact(f"key {age} and token {hvs}")
+    assert age not in r.text and hvs not in r.text
+    assert set(r.hits) == {"age-secret-key", "vault-token"}
+
+
 def test_guard_messages_all_shapes_and_originals_unchanged():
     msgs = [{"role": "user", "content": [{"type": "text", "text": AWS}]},
             {"role": "tool", "content": "password = hunter2hunter2hunter2"}]

@@ -63,3 +63,15 @@ def test_ipv6_is_pseudonymised():
     out = sanitize("link 2001:db8::1 is up", Pseudonymiser())
     assert "2001:db8::1" not in out
     assert "ip-1" in out
+
+
+def test_ipv4_at_end_of_sentence_is_pseudonymised():
+    out = sanitize(f"the gateway is {DOC_IP_A}.", Pseudonymiser())
+    assert DOC_IP_A not in out
+    assert "ip-1" in out
+
+
+def test_five_octet_run_is_not_partially_matched():
+    out = sanitize("addr 192.0.2.1.5 trailing", Pseudonymiser())
+    assert "192.0.2.1.5" in out  # unchanged: a 5-octet string is not a valid IP
+    assert "ip-" not in out  # nothing was pseudonymised
