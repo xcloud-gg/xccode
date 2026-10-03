@@ -1,7 +1,9 @@
 <domain type='kvm'>
   <name>xccode-test</name>
-  <memory unit='MiB'>2048</memory>
-  <vcpu>2</vcpu>
+  <!-- 8 GiB / 4 vCPU: the installer builds OmniRoute (Next.js) and TEI (Rust), which need real
+       headroom — 2 GiB OOMs on both (see DECISIONS). A real thor-class host has this to spare. -->
+  <memory unit='MiB'>8192</memory>
+  <vcpu>4</vcpu>
   <os>
     <type arch='x86_64'>hvm</type>
     <boot dev='hd'/>
