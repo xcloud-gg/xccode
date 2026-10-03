@@ -19,7 +19,7 @@ COMPONENTS: dict[str, str] = {
     "gitleaks": "sha256",           # pinned release binary
     "hermes": "",
     "openviking": "",
-    "tei": "digest",                # image digest
+    "tei": "",                      # native Rust build, pinned by git tag (not an image digest)
     "dsh": "",                      # deepseek-harness-sdk
     "debian_image": "sha256",       # the VM/cloud image the installer tests against
 }

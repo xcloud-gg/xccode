@@ -3,7 +3,7 @@ from xccode.versions import COMPONENTS, Pin, is_complete, load, validate
 DIGEST = "0" * 64
 DIGEST_FIELD = {"opencode": "sha256", "gitleaks": "sha256", "debian_image": "sha256"}
 COMMIT_FIELD = {"openagentscontrol": "commit"}
-DIGEST_ONLY = {"tei": "digest"}
+DIGEST_ONLY = {}
 
 
 def _complete_pins() -> dict[str, Pin]:

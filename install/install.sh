@@ -150,7 +150,7 @@ step_packages() {
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
 step_opt() {
     ensure_dir "$OPT" "root:root" 0755
-    for sub in opencode venv hermes oac opencode-plugins bin; do
+    for sub in opencode venv hermes oac opencode-plugins openviking tei dsh bin; do
         ensure_dir "$OPT/$sub" "root:root" 0755
     done
     ensure_dir "$ETC" "root:root" 0755
@@ -291,11 +291,91 @@ step_omniroute() {
     ensure_dir "$STATE/omniroute" "xccode:xccode" 0700
 }
 
+# --- 4f. dsh (DeepSeek Harness): npm package under the pinned Node runtime ---------
+step_dsh() {
+    dsh_ver=$(sed -n '/^\[dsh\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^version = "\(.*\)"$/\1/p')
+    npm_bin="$OPT/node-v24.14.1-linux-x64/bin/npm"
+    if [ -z "$dsh_ver" ]; then echo "skip: no dsh pin"; return 0; fi
+    if [ -x "$OPT/node-v24.14.1-linux-x64/bin/dsh" ]; then
+        echo "already: dsh $dsh_ver"; return 0
+    fi
+    if [ "$CHECK" = 1 ]; then echo "would: npm install -g @deepseek-ai/dsh@$dsh_ver"; return 0; fi
+    echo ">> npm install -g @deepseek-ai/dsh@$dsh_ver"
+    "$npm_bin" install -g "@deepseek-ai/dsh@$dsh_ver"
+}
+
+# --- 4g. OpenViking: project memory server (native Python, loopback 18180) ---------
+step_openviking() {
+    ov_ver=$(sed -n '/^\[openviking\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^version = "\(.*\)"$/\1/p')
+    if [ -z "$ov_ver" ]; then echo "skip: no openviking pin"; return 0; fi
+    if [ -x "$OPT/openviking/venv/bin/openviking-server" ]; then
+        echo "already: openviking $ov_ver"; return 0
+    fi
+    if [ "$CHECK" = 1 ]; then echo "would: pip install openviking==$ov_ver"; return 0; fi
+    echo ">> pip install openviking==$ov_ver"
+    python3 -m venv "$OPT/openviking/venv"
+    "$OPT/openviking/venv/bin/pip" install --quiet "openviking==$ov_ver"
+    ensure_dir "$STATE/openviking" "xccode:xccode" 0750
+}
+
+# --- 4h. Hermes: headless learner (own venv, pinned tag) --------------------------
+step_hermes() {
+    hermes_ver=$(sed -n '/^\[hermes\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^version = "\(.*\)"$/\1/p')
+    if [ -z "$hermes_ver" ]; then echo "skip: no hermes pin"; return 0; fi
+    if [ -x "$OPT/hermes/.venv/bin/hermes" ]; then
+        echo "already: hermes $hermes_ver"; return 0
+    fi
+    if [ "$CHECK" = 1 ]; then echo "would: install hermes $hermes_ver (own venv)"; return 0; fi
+    echo ">> fetch hermes $hermes_ver"
+    if [ ! -d "$OPT/hermes/.git" ]; then
+        git clone --depth 1 --branch "$hermes_ver" \
+            https://github.com/NousResearch/hermes-agent.git "$OPT/hermes"
+    fi
+    echo ">> install hermes (uv venv, python 3.11)"
+    if command -v uv >/dev/null 2>&1; then
+        uv venv "$OPT/hermes/.venv" --python 3.11
+        (cd "$OPT/hermes" && uv pip install -e ".[all]")
+    else
+        python3 -m venv "$OPT/hermes/.venv"
+        "$OPT/hermes/.venv/bin/pip" install --quiet -e "$OPT/hermes[all]"
+    fi
+    ensure_dir "$STATE/hermes" "xccode:xccode" 0750
+}
+
+# --- 4i. TEI: local embedder (native Rust build, loopback 18181) -------------------
+step_tei() {
+    tei_ver=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^version = "\(.*\)"$/\1/p')
+    router="$OPT/tei/text-embeddings-router"
+    if [ -z "$tei_ver" ]; then echo "skip: no tei pin"; return 0; fi
+    if [ -x "$router" ]; then echo "already: tei $tei_ver"; return 0; fi
+    if [ "$CHECK" = 1 ]; then echo "would: build tei $tei_ver (cargo) into $OPT/tei"; return 0; fi
+    # Rust toolchain: rustup-init as a downloaded binary (never piped into a shell).
+    if ! command -v cargo >/dev/null 2>&1; then
+        echo ">> install rustup (binary, no pipe-to-shell)"
+        curl -fsSL -o "$OPT/tei-rustup-init" https://sh.rustup.rs
+        sh "$OPT/tei-rustup-init" -y --default-toolchain stable --profile minimal
+        rm -f "$OPT/tei-rustup-init"
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
+    echo ">> fetch tei $tei_ver"
+    if [ ! -d "$OPT/tei/.git" ]; then
+        git clone --depth 1 --branch "$tei_ver" \
+            https://github.com/huggingface/text-embeddings-inference.git "$OPT/tei"
+    fi
+    echo ">> cargo install text-embeddings-router (mkl)"
+    (cd "$OPT/tei" && cargo install --path router -F mkl --root "$OPT/tei")
+    ensure_dir "$STATE/tei" "xccode:xccode" 0750
+}
+
 
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
     units="$(dirname "$0")/units"
-    for unit in xcroute.service omniroute.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
         copy_file "$units/$unit" "$SYSTEMD/$unit"
     done
     if [ "$CHECK" = 1 ]; then
@@ -303,7 +383,7 @@ step_services() {
         return 0
     fi
     systemctl daemon-reload
-    for unit in xcroute.service omniroute.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
         systemctl enable "$unit" >/dev/null 2>&1 || true
     done
 }
@@ -373,6 +453,10 @@ main() {
     step_runtime
     step_node
     step_omniroute
+    step_dsh
+    step_openviking
+    step_hermes
+    step_tei
     step_services
     step_profile
     step_guard

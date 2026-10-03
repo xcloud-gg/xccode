@@ -18,17 +18,16 @@ version = ""
 sha256 = ""
 
 [hermes]
-version = ""
+version = "v2026.9.24"
 
 [openviking]
-version = ""
+version = "0.4.23"
 
 [tei]
-version = ""
-digest = ""
+version = "v1.9.4"
 
 [dsh]
-version = ""
+version = "0.2.0-rc.2"
 
 [debian_image]
 version = ""

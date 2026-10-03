@@ -130,3 +130,16 @@ def test_check_shows_omniroute_service_and_runtime(tmp_path):
     assert f"would: install {tmp_path / 'systemd' / 'omniroute.service'}" in r.stdout
     assert "would: install node 24.14.1" in r.stdout
     assert "would: fetch + build OmniRoute" in r.stdout
+
+
+def test_check_shows_m5_components(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(tmp_path / "systemd")},
+    )
+    assert "would: npm install -g @deepseek-ai/dsh@0.2.0-rc.2" in r.stdout
+    assert "would: pip install openviking==0.4.23" in r.stdout
+    assert "would: install hermes v2026.9.24 (own venv)" in r.stdout
+    assert "would: build tei v1.9.4 (cargo)" in r.stdout
+    assert f"would: install {tmp_path / 'systemd' / 'openviking.service'}" in r.stdout
+    assert f"would: install {tmp_path / 'systemd' / 'tei.service'}" in r.stdout

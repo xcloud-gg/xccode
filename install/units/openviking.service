@@ -1,0 +1,16 @@
+[Unit]
+Description=xccode OpenViking project memory
+After=network.target
+
+[Service]
+Type=exec
+User=xccode
+Group=xccode
+Environment=OPENVIKING_CONFIG_FILE=/etc/xcloud/xccode/ov.conf
+ExecStart=/opt/xcloud/xccode/openviking/venv/bin/openviking-server --host 127.0.0.1 --port 18180
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
