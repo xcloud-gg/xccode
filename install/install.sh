@@ -240,6 +240,7 @@ step_runtime() {
     python3 -c "import zipfile; zipfile.ZipFile('$OPT/bun/bun.zip').extractall('$OPT/bun')" \
         || { echo "install.sh: bun extraction failed" >&2; exit 1; }
     rm -f "$OPT/bun/bun.zip"
+    chmod +x "$bun_bin"  # zipfile.extractall does not preserve the executable bit
 }
 
 # --- 4d. node 24: OmniRoute's secure runtime floor (Node 22+; §4.5) ---------------
