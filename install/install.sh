@@ -270,7 +270,7 @@ step_omniroute() {
         echo "skip: no omniroute pin in versions.lock"
         return 0
     fi
-    if [ -d "$omni_dir/.next" ]; then
+    if [ -f "$omni_dir/.build/next/BUILD_ID" ]; then
         echo "already: omniroute $omni_commit (built)"
         return 0
     fi
