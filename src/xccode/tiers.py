@@ -57,10 +57,11 @@ _P3: list[tuple[str, re.Pattern[str]]] = [
                      r"iptables(-nft|-legacy)?\s+(-F|--flush|-P|-D|-I|-A)|ip6tables\s+(-F|-P)|"
                      r"ufw\s+(reset|disable|default|delete|deny)|firewall-cmd\b|"
                      r"systemctl\s+(stop|disable|mask|restart)\s+(nftables|firewalld|ufw|netbird)|"
-                     r"ip\s+(-\d\s+)?route\s+(del|delete|replace|flush|change)|"
-                     r"ip\s+link\s+set\s+\S+\s+down|ip\s+(addr|address)\s+(flush|del)|"
+                     r"ip\s+(-\d\s+)?route\s+(add|del|delete|replace|flush|change)|"
+                     r"ip\s+link\s+(set\s+\S+\s+down|del\b|delete\b)|ip\s+(addr|address)\s+(flush|del)|"
                      r"nmcli\s+(con|connection|device|networking)\s+(down|delete|modify|off)|"
                      r"netbird\s+(down|service\s+(stop|uninstall)))\b"),
+        ("journal-vacuum", r"\bjournalctl\b[^|;&]*--vacuum"),
         ("firmware-boot", r"\b(fwupdmgr\s+(install|update|downgrade|activate)|flashrom|"
                           r"mokutil\s+--(import|delete|reset|disable|enable|revoke|timeout)|"
                           r"efibootmgr\s+(-[a-zA-Z]*[bBoOnNcCd]|--)|bootctl\s+(install|remove|set-default|update)|"
@@ -147,6 +148,7 @@ _P0_SUB = {
     "apt-cache": {"policy", "show", "search", "depends", "rdepends", "madison"},
     "pacman": {"-Q", "-Qi", "-Ql", "-Qs", "-Ss", "-Si", "-Qe", "-Qk"},
     "netbird": {"status", "version"},
+    "hostnamectl": {"status", "show", "", "--version", "--static", "--transient", "--pretty", "--json"},
     "mokutil": {"--sb-state", "--list-enrolled", "--db", "--pk", "--kek", "--list-new"},
     "fwupdmgr": {"get-devices", "get-updates", "get-history", "get-plugins", "--version"},
     "efibootmgr": {"-v", "--verbose", ""},
@@ -158,6 +160,11 @@ _P0_SUB = {
 }
 _SEGMENT_SPLIT = re.compile(r"\|\||&&|;|\||&|\n")
 _SUBSHELL = re.compile(r"\$\(|`|<\(|>\(")
+# `ip` is read-only only in its show forms; these verbs make it a write (the destructive forms are
+# already in the P3 catalogue above, so this is the reversible-write floor).
+_IP_WRITE = re.compile(r"\b(add|del|delete|set|change|replace|flush|up|down)\b")
+# awk/sed are read-only only when their program cannot execute anything or spawn a sub-process.
+_INTERP_EXEC = re.compile(r"\b(system|exec)\s*\(|\bgetline\b|\|\s*[\"']")
 _WRAPPERS = {"sudo", "env", "nohup", "time", "timeout", "nice", "ionice", "stdbuf", "command", "exec",
              "xca-aios"}
 _SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish"}
@@ -204,7 +211,7 @@ def _unwrap(tokens: list[str]) -> tuple[list[str], str | None]:
 
 
 def _git_listing(sub: str, args: list[str]) -> Classification:
-    """`git config|remote|tag|branch` only read when they list or get; anything else writes."""
+    """`git config|remote|tag|branch|reflog` only read when they list or get; else writes."""
     plain = [t for t in args if not t.startswith("-")]
     if sub == "config" and any(t in {"--get", "--list", "-l", "--get-all", "--get-regexp"} for t in args):
         return Classification(Tier.P0, "p0:git-config-read")
@@ -214,6 +221,8 @@ def _git_listing(sub: str, args: list[str]) -> Classification:
         return Classification(Tier.P0, f"p0:git-{sub}-list")
     if sub == "remote" and (not plain or plain[0] in {"show", "get-url"}):
         return Classification(Tier.P0, "p0:git-remote-read")
+    if sub == "reflog" and (not plain or plain[0] in {"show", "exists"}):
+        return Classification(Tier.P0, "p0:git-reflog-read")
     return Classification(Tier.P2, f"git-{sub}-writes")
 
 
@@ -236,18 +245,21 @@ def _segment_tier(segment: str, remote_hint: bool) -> Classification:
     for rx in _P1:
         if rx.search(rest):
             return Classification(Tier.P1, "p1:" + rx.pattern[:40])
+    if cmd == "ip" and _IP_WRITE.search(rest):
+        return Classification(Tier.P2, "ip-write")
     if cmd in _P0_CMDS and not writes:
         sub = _P0_SUB.get(cmd)
         if sub is None:
             return Classification(Tier.P0, f"p0:{cmd}")
         first = next((t for t in toks[1:] if not t.startswith("-") or t in sub), "")
         if first in sub:
-            if cmd == "git" and first in {"config", "remote", "tag", "branch"}:
+            if cmd == "git" and first in {"config", "remote", "tag", "branch", "reflog"}:
                 return _git_listing(first, toks[2:])
             return Classification(Tier.P0, f"p0:{cmd}-{first or 'list'}")
     if cmd == "find" and not writes and not re.search(r"-(delete|exec|execdir|ok|fprint|fls)\b", rest):
         return Classification(Tier.P0, "p0:find")
-    if cmd in {"sed", "awk"} and not writes and "-i" not in toks[1:] and "--in-place" not in rest:
+    if cmd in {"sed", "awk"} and not writes and "-i" not in toks[1:] and "--in-place" not in rest \
+            and not _INTERP_EXEC.search(rest):
         return Classification(Tier.P0, f"p0:{cmd}-read")
     return Classification(Tier.P2, "unknown-or-write")
 

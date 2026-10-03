@@ -67,6 +67,10 @@ def test_p1(cmd):
         "ls $(whoami)",
         "bash -c 'touch /tmp/x'",
         "tofu apply plan.tfplan",
+        "ip addr add 192.0.2.5/24 dev eth0",
+        "hostnamectl set-hostname foo",
+        "awk 'BEGIN{system(\"rm -rf /srv/aios\")}'",
+        "git reflog expire --expire=now --all",
     ],
 )
 def test_p2(cmd):
@@ -90,7 +94,10 @@ def test_p2(cmd):
         "nft flush ruleset",
         "iptables -F",
         "ip route del default",
+        "ip route add default via 192.0.2.1",
         "ip link set wt0 down",
+        "ip link delete wt0",
+        "journalctl --vacuum-time=1s",
         "systemctl stop nftables",
         "fwupdmgr install fw.cab",
         "efibootmgr -o 0001",
