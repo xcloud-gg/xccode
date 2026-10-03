@@ -363,7 +363,7 @@ step_hermes() {
 step_tei() {
     tei_ver=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
-    router="$OPT/tei/text-embeddings-router"
+    router="$OPT/tei/bin/text-embeddings-router"
     if [ -z "$tei_ver" ]; then echo "skip: no tei pin"; return 0; fi
     if [ -x "$router" ]; then echo "already: tei $tei_ver"; return 0; fi
     if [ "$CHECK" = 1 ]; then echo "would: build tei $tei_ver (cargo) into $OPT/tei"; return 0; fi

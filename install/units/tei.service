@@ -7,7 +7,7 @@ Type=exec
 User=xccode
 Group=xccode
 Environment=HUGGINGFACE_HUB_CACHE=/var/lib/xcloud/xccode/tei
-ExecStart=/opt/xcloud/xccode/tei/text-embeddings-router --model-id Qwen/Qwen3-Embedding-0.6B --port 18181 --hostname 127.0.0.1
+ExecStart=/opt/xcloud/xccode/tei/bin/text-embeddings-router --model-id Qwen/Qwen3-Embedding-0.6B --port 18181 --hostname 127.0.0.1
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true
