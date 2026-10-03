@@ -3,19 +3,19 @@
 # be shipped, installed, or upgraded to. Never hand-edit the checksums; record them from the release.
 
 [opencode]
-version = ""
-sha256 = ""
+version = "2.0.22"
+sha256 = "32cf5aa0a69a650e36277e3315d189835ddc79fb9aa1d0aef5025be5af5ad122"
 
 [omniroute]
 version = "23a11484862b3bb589a55e85b00e4ac53ffeb234"
 
 [openagentscontrol]
-version = ""
+version = "37ca233fa5597a5abb90cba73165deafffe0344f"
 commit = "37ca233fa5597a5abb90cba73165deafffe0344f"
 
 [gitleaks]
-version = ""
-sha256 = ""
+version = "8.30.1"
+sha256 = "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 
 [hermes]
 version = "v2026.9.24"
@@ -30,5 +30,5 @@ version = "v1.9.4"
 version = "0.2.0-rc.2"
 
 [debian_image]
-version = ""
-sha256 = ""
+version = "13"
+sha512 = "6f0f93335bdef4ccf523c4317cc663ea52ca23b862667785f3d6d186ab4674a937385ccff0c55996b4b2e4c19e440cdf211e2a75ffa2f6548037ab43950c841d"

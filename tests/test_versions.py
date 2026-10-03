@@ -1,7 +1,7 @@
 from xccode.versions import COMPONENTS, Pin, is_complete, load, validate
 
 DIGEST = "0" * 64
-DIGEST_FIELD = {"opencode": "sha256", "gitleaks": "sha256", "debian_image": "sha256"}
+DIGEST_FIELD = {"opencode": "sha256", "gitleaks": "sha256", "debian_image": "sha512"}
 COMMIT_FIELD = {"openagentscontrol": "commit"}
 DIGEST_ONLY = {}
 
@@ -73,3 +73,14 @@ def test_version_only_components_need_no_checksum():
     pins = _complete_pins()
     pins["omniroute"] = Pin("omniroute", "1.0.0", "")
     assert validate(pins) == []
+
+
+def test_real_versions_lock_is_complete():
+    # The shipped versions.lock must be fully pinned — an empty required pin is a
+    # release blocker (XC-CODE-001 §11).
+    from pathlib import Path
+
+    lock = Path(__file__).resolve().parent.parent / "etc" / "versions.lock"
+    pins = load(lock)
+    assert validate(pins) == []
+    assert is_complete(pins)

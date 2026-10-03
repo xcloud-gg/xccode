@@ -21,7 +21,7 @@ COMPONENTS: dict[str, str] = {
     "openviking": "",
     "tei": "",                      # native Rust build, pinned by git tag (not an image digest)
     "dsh": "",                      # deepseek-harness-sdk
-    "debian_image": "sha256",       # the VM/cloud image the installer tests against
+    "debian_image": "sha512",       # the VM/cloud image (Debian publishes sha512)
 }
 
 
