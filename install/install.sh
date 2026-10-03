@@ -136,7 +136,7 @@ EOF
 
 # --- 2. packages (Debian main only); gitleaks from the signed release (step 4) --
 step_packages() {
-    for pkg in bubblewrap restic auditd python3-venv gpgv; do
+    for pkg in bubblewrap restic auditd python3-venv gpgv gcc pkg-config libssl-dev cmake protobuf-compiler; do
         if dpkg -s "$pkg" >/dev/null 2>&1; then
             echo "already: package $pkg"
         else
@@ -144,7 +144,8 @@ step_packages() {
         fi
     done
     # `uv` is not a Debian package: it is installed into the venv from the signed release, and
-    # gitleaks from its pinned release binary (§11). Both land via the fetch step.
+    # gitleaks from its pinned release binary (§11). Both land via the fetch step. gcc/pkg-config/
+    # libssl-dev/cmake/protobuf-compiler build TEI's Rust router (§4.8).
 }
 
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
