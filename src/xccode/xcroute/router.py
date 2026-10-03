@@ -151,7 +151,9 @@ class Router:
             return done(502, decider, "error:provider", mode=mode, pool=pool, hits=hits,
                         ms=ms, detail=str(e))
         ms = int((time.monotonic() - start) * 1000)
-        self.budget.record(day, agent, cfg.provider, comp.cost_micro_usd)
+        # OmniRoute's OpenAI-compatible response has no cost field; fall back to the configured
+        # per-request estimate so the daily/per-provider/per-agent caps actually accumulate.
+        self.budget.record(day, agent, cfg.provider, comp.cost_micro_usd or cfg.est_cost_micro_usd)
         if decider != "pinned":
             self.tracker.remember(req.session, user_text, pool)
         return done(200, decider, "ok", mode=mode, pool=pool, hits=hits, comp=comp, ms=ms,

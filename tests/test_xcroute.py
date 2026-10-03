@@ -102,6 +102,17 @@ def test_budget_caps_and_day_roll():
     assert g.allows("d2", "opencode", "p", 100)  # new day, fresh counters
 
 
+def test_budget_persists_across_restart(tmp_path):
+    state = tmp_path / "budget.json"
+    g = BudgetGate(Limits(per_request=100, per_day=200), state_path=state)
+    g.record("d1", "opencode", "p", 100)
+    # a fresh gate (a simulated restart) resumes from the persisted total
+    g2 = BudgetGate(Limits(per_request=100, per_day=200), state_path=state)
+    assert not g2.allows("d1", "opencode", "p", 150)  # 100 + 150 > 200
+    assert g2.allows("d1", "opencode", "p", 100)  # 100 + 100 == 200
+    assert g2.allows("d2", "opencode", "p", 100)  # a new day starts fresh
+
+
 # ---- decide ----------------------------------------------------------------------------------
 def test_rules_baseline_modes():
     assert mode_from(rules_answers("fix the failing test in parser.py")) == "coding"

@@ -56,6 +56,8 @@ def load_config(path: Path) -> ServeConfig:
     limits = Limits(
         per_request=int(b.get("per_request", 1_000_000)),
         per_day=int(b.get("per_day", 10_000_000)),
+        per_provider_day={k: int(v) for k, v in b.get("per_provider_day", {}).items()},
+        per_agent_day={k: int(v) for k, v in b.get("per_agent_day", {}).items()},
     )
     return ServeConfig(
         base_url=str(data.get("base_url", DEFAULT_BASE_URL)),
@@ -73,7 +75,7 @@ def build_router(cfg: ServeConfig) -> Router:
         pools=cfg.pools,
         scores=cfg.scores,
         healthy=lambda: set(cfg.pools),
-        budget=BudgetGate(cfg.limits),
+        budget=BudgetGate(cfg.limits, state_path=cfg.state_dir / "budget.json"),
         provider=OmniRouteProvider(base_url=cfg.base_url),
         events=EventLog(cfg.state_dir / "events.db"),
     )
