@@ -9,6 +9,7 @@ OPENCODE_BIN="${XCCODE_OPENCODE:-opencode}"
 # xccode keeps its OpenCode state separate from any other OpenCode on the host, and never
 # self-updates (pins are owned by the release, XC-CODE-001 §11).
 export OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/xccode/opencode}"
+export OPENCODE_CONFIG="${OPENCODE_CONFIG:-$HOME/.config/xccode/opencode/opencode.json}"
 export OPENCODE_DISABLE_AUTOUPDATE="${OPENCODE_DISABLE_AUTOUPDATE:-1}"
 
 # Refuse to start inside a repository marked secret: xccode has no local model for SECRET work

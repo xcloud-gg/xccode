@@ -259,8 +259,13 @@ step_profile() {
     dst="/home/$OPERATOR/.local/bin/xcc"
     ensure_dir "/home/$OPERATOR/.local/bin" "$OPERATOR:$OPERATOR" 0755
     copy_file "$(dirname "$0")/xcc" "$dst" 0755
-    # Upcoming: OpenCode profile (OPENCODE_CONFIG_DIR), OAC agents, plugins, native skills,
-    # xccode-mcp, opencode serve user unit.
+    # OpenCode profile (provider -> xcroute, model xc/auto, xccode-mcp): the xcc launcher
+    # points OPENCODE_CONFIG here, so xccode's OpenCode never reads another install's config.
+    prof="/home/$OPERATOR/.config/xccode/opencode"
+    ensure_dir "$prof" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/../etc/opencode/profile.json" "$prof/opencode.json" 0644
+    chown "$OPERATOR:$OPERATOR" "$prof/opencode.json" 2>/dev/null || true
+    # Upcoming: OAC agents, plugins, native skills, opencode serve user unit.
 }
 
 main() {

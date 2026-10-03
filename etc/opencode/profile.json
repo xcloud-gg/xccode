@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "xc/auto",
+  "providers": {
+    "xc": {
+      "name": "xcroute",
+      "env": ["XCC_TOKEN"],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": { "baseURL": "http://127.0.0.1:18080/v1" },
+      "models": { "auto": { "modelID": "xc/auto", "name": "xc/auto" } }
+    }
+  },
+  "mcp": {
+    "xccode-mcp": {
+      "type": "local",
+      "command": ["/opt/xcloud/xccode/venv/bin/xccode", "mcp"]
+    }
+  }
+}

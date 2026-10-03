@@ -230,6 +230,14 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_mcp(args) -> int:
+    """Run the xccode MCP server over stdio (§4.11)."""
+    from . import xcmcp
+
+    xcmcp.run_stdio()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -260,6 +268,8 @@ def main(argv: list[str] | None = None) -> int:
     srv.add_argument("--host", default="127.0.0.1")
     srv.add_argument("--port", type=int, default=18080)
     srv.set_defaults(fn=cmd_serve)
+    m = sub.add_parser("mcp", help="run the xccode MCP server over stdio (§4.11)")
+    m.set_defaults(fn=cmd_mcp)
     args = ap.parse_args(argv)
     return args.fn(args)
 
