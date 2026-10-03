@@ -35,6 +35,42 @@ def test_posts_pool_as_model_and_returns_completion():
     assert seen["body"]["messages"] == [{"role": "user", "content": "hi"}]
 
 
+def test_sends_bearer_api_key_when_configured():
+    seen = {}
+
+    def handler(request):
+        seen["auth"] = request.headers.get("authorization")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 1},
+            },
+        )
+
+    p = OmniRouteProvider("http://127.0.0.1:18128", api_key="test-key", client=_client(handler))
+    p("coding-strong", [])
+    assert seen["auth"] == "Bearer test-key"
+
+
+def test_omits_auth_header_when_no_api_key():
+    seen = {}
+
+    def handler(request):
+        seen["auth"] = request.headers.get("authorization")
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "ok"}}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 1},
+            },
+        )
+
+    p = OmniRouteProvider("http://127.0.0.1:18128", client=_client(handler))
+    p("coding-strong", [])
+    assert seen["auth"] is None
+
+
 def test_non_200_raises_provider_error():
     def handler(request):
         return httpx.Response(500, text="boom")

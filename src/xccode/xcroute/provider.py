@@ -18,17 +18,21 @@ class OmniRouteProvider:
     def __init__(
         self,
         base_url: str = DEFAULT_BASE_URL,
+        api_key: str = "",
         client: httpx.Client | None = None,
         timeout: float = 120.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self._api_key = api_key
         self._client = client or httpx.Client(timeout=timeout)
 
     def __call__(self, pool: str, messages: list[dict]) -> Completion:
+        headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else None
         try:
             resp = self._client.post(
                 f"{self.base_url}/v1/chat/completions",
                 json={"model": pool, "messages": messages},
+                headers=headers,
             )
             resp.raise_for_status()
             data = resp.json()

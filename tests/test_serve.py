@@ -10,6 +10,7 @@ def _write_config(tmp_path: Path) -> Path:
     cfg = tmp_path / "serve.toml"
     cfg.write_text(
         'base_url = "http://127.0.0.1:18128"\n'
+        'api_key = "test-key"\n'
         f'tokens = {{ opencode = "{digest}" }}\n'
         f'state_dir = "{tmp_path}"\n'
         "\n[pools]\n"
@@ -29,6 +30,7 @@ def _write_config(tmp_path: Path) -> Path:
 def test_load_config(tmp_path):
     cfg = load_config(_write_config(tmp_path))
     assert cfg.base_url == "http://127.0.0.1:18128"
+    assert cfg.api_key == "test-key"
     assert set(cfg.pools) == set(POOLS)
     assert cfg.pools["coding-strong"].provider == "anthropic"
     assert cfg.pools["coding-strong"].est_cost_micro_usd == 100

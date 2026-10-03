@@ -28,6 +28,7 @@ def _default_limits() -> Limits:
 @dataclass(frozen=True)
 class ServeConfig:
     base_url: str = DEFAULT_BASE_URL
+    api_key: str = ""  # bearer key for the private OmniRoute instance (§4.5)
     tokens: dict[str, str] = field(default_factory=dict)  # agent -> sha256 hex digest
     pools: dict[str, PoolConfig] = field(default_factory=dict)
     scores: dict[str, PoolScore] = field(default_factory=dict)
@@ -61,6 +62,7 @@ def load_config(path: Path) -> ServeConfig:
     )
     return ServeConfig(
         base_url=str(data.get("base_url", DEFAULT_BASE_URL)),
+        api_key=str(data.get("api_key", "")),
         tokens=dict(data.get("tokens", {})),
         pools=pools,
         scores=scores,
@@ -76,6 +78,6 @@ def build_router(cfg: ServeConfig) -> Router:
         scores=cfg.scores,
         healthy=lambda: set(cfg.pools),
         budget=BudgetGate(cfg.limits, state_path=cfg.state_dir / "budget.json"),
-        provider=OmniRouteProvider(base_url=cfg.base_url),
+        provider=OmniRouteProvider(base_url=cfg.base_url, api_key=cfg.api_key),
         events=EventLog(cfg.state_dir / "events.db"),
     )
