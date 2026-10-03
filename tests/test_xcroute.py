@@ -53,7 +53,7 @@ def test_guard_clean_text_untouched():
 
 def test_guard_redacts_age_and_vault_secrets():
     age = "AGE-SECRET-KEY-1" + "A" * 50
-    hvs = "hvs." + "a" * 20
+    hvs = "hvs." + "a" * 24
     r = redact(f"key {age} and token {hvs}")
     assert age not in r.text and hvs not in r.text
     assert set(r.hits) == {"age-secret-key", "vault-token"}

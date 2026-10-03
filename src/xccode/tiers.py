@@ -148,7 +148,9 @@ _P0_SUB = {
     "apt-cache": {"policy", "show", "search", "depends", "rdepends", "madison"},
     "pacman": {"-Q", "-Qi", "-Ql", "-Qs", "-Ss", "-Si", "-Qe", "-Qk"},
     "netbird": {"status", "version"},
-    "hostnamectl": {"status", "show", "", "--version", "--static", "--transient", "--pretty", "--json"},
+    # Only verbs and an empty (bare) command are read-only; `set-*` flags must never be reached by
+    # a leading read-only flag like `--static set-hostname`, so flags are deliberately not listed.
+    "hostnamectl": {"status", "show", "", "--version"},
     "mokutil": {"--sb-state", "--list-enrolled", "--db", "--pk", "--kek", "--list-new"},
     "fwupdmgr": {"get-devices", "get-updates", "get-history", "get-plugins", "--version"},
     "efibootmgr": {"-v", "--verbose", ""},
@@ -161,8 +163,10 @@ _P0_SUB = {
 _SEGMENT_SPLIT = re.compile(r"\|\||&&|;|\||&|\n")
 _SUBSHELL = re.compile(r"\$\(|`|<\(|>\(")
 # `ip` is read-only only in its show forms; these verbs make it a write (the destructive forms are
-# already in the P3 catalogue above, so this is the reversible-write floor).
-_IP_WRITE = re.compile(r"\b(add|del|delete|set|change|replace|flush|up|down)\b")
+# already in the P3 catalogue above, so this is the reversible-write floor). `up`/`down` are left
+# out: they are read-only filters (`ip link show up`) and the write form is `ip link set <if> up`,
+# which `set` catches.
+_IP_WRITE = re.compile(r"\b(add|del|delete|set|change|replace|flush)\b")
 # awk/sed are read-only only when their program cannot execute anything or spawn a sub-process.
 _INTERP_EXEC = re.compile(r"\b(system|exec)\s*\(|\bgetline\b|\|\s*[\"']")
 _WRAPPERS = {"sudo", "env", "nohup", "time", "timeout", "nice", "ionice", "stdbuf", "command", "exec",
@@ -221,7 +225,7 @@ def _git_listing(sub: str, args: list[str]) -> Classification:
         return Classification(Tier.P0, f"p0:git-{sub}-list")
     if sub == "remote" and (not plain or plain[0] in {"show", "get-url"}):
         return Classification(Tier.P0, "p0:git-remote-read")
-    if sub == "reflog" and (not plain or plain[0] in {"show", "exists"}):
+    if sub == "reflog" and not any(t in {"expire", "delete"} for t in plain):
         return Classification(Tier.P0, "p0:git-reflog-read")
     return Classification(Tier.P2, f"git-{sub}-writes")
 
@@ -259,7 +263,7 @@ def _segment_tier(segment: str, remote_hint: bool) -> Classification:
     if cmd == "find" and not writes and not re.search(r"-(delete|exec|execdir|ok|fprint|fls)\b", rest):
         return Classification(Tier.P0, "p0:find")
     if cmd in {"sed", "awk"} and not writes and "-i" not in toks[1:] and "--in-place" not in rest \
-            and not _INTERP_EXEC.search(rest):
+            and not any(t in {"-f", "--file"} for t in toks) and not _INTERP_EXEC.search(rest):
         return Classification(Tier.P0, f"p0:{cmd}-read")
     return Classification(Tier.P2, "unknown-or-write")
 

@@ -17,6 +17,8 @@ from xccode.tiers import Tier, classify, classify_plan
         "ip -br a",
         "ip route show",
         "journalctl -u sshd -n 50",
+        "ip link show up",
+        "git reflog -n 5",
         "nft list ruleset",
         "grep -r foo /etc | head",
         "find /var/log -name '*.log'",
@@ -69,7 +71,9 @@ def test_p1(cmd):
         "tofu apply plan.tfplan",
         "ip addr add 192.0.2.5/24 dev eth0",
         "hostnamectl set-hostname foo",
+        "hostnamectl --static set-hostname evil",
         "awk 'BEGIN{system(\"rm -rf /srv/aios\")}'",
+        "awk -f script.awk input",
         "git reflog expire --expire=now --all",
     ],
 )

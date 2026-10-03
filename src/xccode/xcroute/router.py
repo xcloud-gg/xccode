@@ -100,13 +100,13 @@ class Router:
         mh = message_hash(user_text)
 
         def done(status: int, decider: str, outcome: str, mode=None, pool=None, hits=(),
-                 comp: Completion | None = None, ms: int = 0, text="",
+                 comp: Completion | None = None, ms: int = 0, text="", cost: int | None = None,
                  detail="") -> Result:
             ev = RoutingEvent(
                 ts=ts, agent=agent, xc_agent_role=role, decider=decider, mode=mode, pool=pool,
                 message_hash=mh, guard_hits=tuple(hits), outcome=outcome,
                 tokens_in=comp.tokens_in if comp else 0, tokens_out=comp.tokens_out if comp else 0,
-                cost_micro_usd=comp.cost_micro_usd if comp else 0,
+                cost_micro_usd=cost if cost is not None else (comp.cost_micro_usd if comp else 0),
                 failover=comp.failover if comp else False, latency_ms=ms)
             self.events.write(ev)
             return Result(status, pool, text, ev, detail)
@@ -152,9 +152,11 @@ class Router:
                         ms=ms, detail=str(e))
         ms = int((time.monotonic() - start) * 1000)
         # OmniRoute's OpenAI-compatible response has no cost field; fall back to the configured
-        # per-request estimate so the daily/per-provider/per-agent caps actually accumulate.
-        self.budget.record(day, agent, cfg.provider, comp.cost_micro_usd or cfg.est_cost_micro_usd)
+        # per-request estimate so the daily/per-provider/per-agent caps actually accumulate. The
+        # budget and the routing event record the same figure.
+        charged = comp.cost_micro_usd or cfg.est_cost_micro_usd
+        self.budget.record(day, agent, cfg.provider, charged)
         if decider != "pinned":
             self.tracker.remember(req.session, user_text, pool)
         return done(200, decider, "ok", mode=mode, pool=pool, hits=hits, comp=comp, ms=ms,
-                    text=comp.text)
+                    cost=charged, text=comp.text)

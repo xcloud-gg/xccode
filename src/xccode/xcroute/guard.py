@@ -20,7 +20,7 @@ RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b")),
     ("bearer-token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{24,}")),
     ("age-secret-key", re.compile(r"\bAGE-SECRET-KEY-1[A-Za-z0-9]{40,}\b")),
-    ("vault-token", re.compile(r"\bhvs\.[A-Za-z0-9_-]{16,}\b")),
+    ("vault-token", re.compile(r"\bhvs\.[A-Za-z0-9_-]{24,}\b")),
     ("assigned-secret", re.compile(
         r"(?i)\b(?:api[_-]?key|secret|passw(?:or)?d|token)\b\s*[:=]\s*['\"]?[^\s'\"]{12,}")),
 )
