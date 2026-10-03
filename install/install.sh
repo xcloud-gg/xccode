@@ -240,10 +240,62 @@ step_runtime() {
     rm -f "$OPT/bun/bun.zip"
 }
 
+# --- 4d. node 24: OmniRoute's secure runtime floor (Node 22+; §4.5) ---------------
+step_node() {
+    node_ver="24.14.1"
+    node_bin="$OPT/node-v${node_ver}-linux-x64/bin/node"
+    if [ -x "$node_bin" ]; then
+        echo "already: node $node_ver"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: install node $node_ver (OmniRoute runtime, §4.5)"
+        return 0
+    fi
+    echo ">> install node $node_ver"
+    curl -fsSL -o "$OPT/node.tar.xz" \
+        "https://nodejs.org/dist/v${node_ver}/node-v${node_ver}-linux-x64.tar.xz"
+    tar -xf "$OPT/node.tar.xz" -C "$OPT"
+    rm -f "$OPT/node.tar.xz"
+}
+
+# --- 4e. OmniRoute: fetch pinned source, install deps, build (private router §4.5) --
+step_omniroute() {
+    omni_commit=$(sed -n '/^\[omniroute\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^version = "\(.*\)"$/\1/p')
+    omni_dir="$OPT/omniroute"
+    node_bin="$OPT/node-v24.14.1-linux-x64/bin/node"
+    bun_bin="$OPT/bun/bun-linux-x64/bun"
+    if [ -z "$omni_commit" ]; then
+        echo "skip: no omniroute pin in versions.lock"
+        return 0
+    fi
+    if [ -d "$omni_dir/.next" ]; then
+        echo "already: omniroute $omni_commit (built)"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: fetch + build OmniRoute $omni_commit into $omni_dir"
+        return 0
+    fi
+    echo ">> fetch OmniRoute $omni_commit"
+    if [ ! -d "$omni_dir/.git" ]; then
+        git clone --depth 1 https://github.com/diegosouzapw/OmniRoute.git "$omni_dir"
+    fi
+    (cd "$omni_dir" && git fetch --depth 1 origin "$omni_commit" && git checkout -q "$omni_commit")
+    echo ">> install OmniRoute deps (bun)"
+    (cd "$omni_dir" && "$bun_bin" install)
+    echo ">> build OmniRoute (node $node_ver)"
+    (cd "$omni_dir" && "$node_bin" --max-old-space-size=8192 scripts/build/build-next-isolated.mjs)
+    # OmniRoute's data dir must be writable by the xccode service user, not root.
+    ensure_dir "$STATE/omniroute" "xccode:xccode" 0700
+}
+
+
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
     units="$(dirname "$0")/units"
-    for unit in xcroute.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
         copy_file "$units/$unit" "$SYSTEMD/$unit"
     done
     if [ "$CHECK" = 1 ]; then
@@ -251,7 +303,7 @@ step_services() {
         return 0
     fi
     systemctl daemon-reload
-    for unit in xcroute.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
         systemctl enable "$unit" >/dev/null 2>&1 || true
     done
 }
@@ -319,6 +371,8 @@ main() {
     step_fetch
     step_venv
     step_runtime
+    step_node
+    step_omniroute
     step_services
     step_profile
     step_guard

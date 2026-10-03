@@ -120,3 +120,13 @@ def test_check_shows_backup_unit_and_nft_unit(tmp_path):
     )
     assert f"would: install {tmp_path / 'systemd' / 'xccode-backup.timer'}" in r.stdout
     assert f"would: install {tmp_path / 'systemd' / 'xccode-nft.service'}" in r.stdout
+
+
+def test_check_shows_omniroute_service_and_runtime(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(tmp_path / "systemd")},
+    )
+    assert f"would: install {tmp_path / 'systemd' / 'omniroute.service'}" in r.stdout
+    assert "would: install node 24.14.1" in r.stdout
+    assert "would: fetch + build OmniRoute" in r.stdout

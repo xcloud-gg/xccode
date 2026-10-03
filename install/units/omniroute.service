@@ -1,0 +1,19 @@
+[Unit]
+Description=xccode private OmniRoute router
+After=network.target
+
+[Service]
+Type=exec
+User=xccode
+Group=xccode
+WorkingDirectory=/opt/xcloud/xccode/omniroute
+Environment=PORT=18128
+Environment=HOST=127.0.0.1
+Environment=DATA_DIR=/var/lib/xcloud/xccode/omniroute
+ExecStart=/opt/xcloud/xccode/node-v24.14.1-linux-x64/bin/node scripts/dev/run-next.mjs start
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -7,7 +7,7 @@ version = ""
 sha256 = ""
 
 [omniroute]
-version = ""
+version = "23a11484862b3bb589a55e85b00e4ac53ffeb234"
 
 [openagentscontrol]
 version = ""
