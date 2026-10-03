@@ -1,0 +1,14 @@
+[Unit]
+Description=xccode benchmark run (routing suites, memory off)
+ConditionPathExists=!/run/gamemode.flag
+
+[Service]
+Type=oneshot
+User=xccode
+Group=xccode
+ExecStart=/opt/xcloud/xccode/venv/bin/xccode bench --suite /etc/xcloud/xccode/bench/routing.toml --config /etc/xcloud/xccode/serve.toml
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

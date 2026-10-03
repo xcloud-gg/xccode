@@ -250,6 +250,25 @@ def cmd_oac(args) -> int:
     return 0
 
 
+def cmd_bench(args) -> int:
+    """Run a routing suite against every pool and print the score table (§4.13)."""
+    from .xcbench import bench, load_suite, scores_to_toml
+    from .xcroute.provider import OmniRouteProvider
+    from .xcroute.serve import load_config
+
+    prompts = load_suite(Path(args.suite))
+    pools: dict[str, int] = {}
+    if args.config:
+        pools = {n: p.est_cost_micro_usd for n, p in load_config(Path(args.config)).pools.items()}
+    if not pools:
+        print("bench: no pools — pass --config serve.toml (with [pools])", file=sys.stderr)
+        return 1
+    provider = OmniRouteProvider(base_url=args.base_url, api_key=args.api_key)
+    scores = bench(provider, prompts, pools)
+    print(scores_to_toml(scores), end="")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -287,6 +306,12 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--profile", required=True)
     o.add_argument("--out", required=True)
     o.set_defaults(fn=cmd_oac)
+    b = sub.add_parser("bench", help="run a routing suite and score every pool (§4.13)")
+    b.add_argument("--suite", type=Path, required=True)
+    b.add_argument("--config", type=Path, help="serve.toml with [pools] (estimated cost)")
+    b.add_argument("--base-url", default="http://127.0.0.1:18128")
+    b.add_argument("--api-key", default="")
+    b.set_defaults(fn=cmd_bench)
     args = ap.parse_args(argv)
     return args.fn(args)
 

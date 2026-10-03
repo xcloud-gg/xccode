@@ -1,0 +1,21 @@
+# xccode routing suite (XC-CODE-001 §4.13). Short prompts per mode, scored against every pool.
+# `expect` is an optional substring the completion must contain to count as correct; omit it to
+# score "non-empty completion" only. No prompt here is secret or internal — this ships in the repo.
+
+[[routing]]
+mode = "fast"
+prompt = "Reply with exactly the single word: pong"
+expect = "pong"
+
+[[routing]]
+mode = "fast"
+prompt = "What is 2 + 2? Answer with the number only."
+expect = "4"
+
+[[routing]]
+mode = "reasoning"
+prompt = "In one sentence, explain what a symlink is."
+
+[[routing]]
+mode = "coding"
+prompt = "Write a Python function that returns the sum of a list, and name it add_all."

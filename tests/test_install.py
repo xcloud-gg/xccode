@@ -143,3 +143,12 @@ def test_check_shows_m5_components(tmp_path):
     assert "would: build tei v1.9.4 (cargo)" in r.stdout
     assert f"would: install {tmp_path / 'systemd' / 'openviking.service'}" in r.stdout
     assert f"would: install {tmp_path / 'systemd' / 'tei.service'}" in r.stdout
+
+
+def test_check_shows_timers(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(tmp_path / "systemd")},
+    )
+    assert f"would: install {tmp_path / 'systemd' / 'xccode-bench.timer'}" in r.stdout
+    assert f"would: install {tmp_path / 'systemd' / 'xccode-learn.timer'}" in r.stdout

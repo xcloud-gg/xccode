@@ -1,0 +1,14 @@
+[Unit]
+Description=xccode nightly learner (Hermes headless, restricted profile)
+ConditionPathExists=!/run/gamemode.flag
+
+[Service]
+Type=oneshot
+User=xccode
+Group=xccode
+ExecStart=/opt/xcloud/xccode/bin/xccode-learn.sh
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -162,6 +162,7 @@ step_opt() {
 }
 EOF
     copy_file "$(dirname "$0")/xccode-backup.sh" "$OPT/bin/xccode-backup.sh" 0755
+    copy_file "$(dirname "$0")/xccode-learn.sh" "$OPT/bin/xccode-learn.sh" 0755
     write_file "$ETC/backup.toml" <<'EOF'
 # xccode backup target (XC-CODE-001 §11). Filled by the operator via SOPS — a second disk or
 # USB drive until urd exists. An empty repository means the xccode-backup timer does nothing.
@@ -386,7 +387,7 @@ step_tei() {
 # --- 5. services (systemd units, all loopback) -----------------------------------
 step_services() {
     units="$(dirname "$0")/units"
-    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.service xccode-guard.path xccode-nft.service xccode-backup.service xccode-backup.timer xccode-bench.service xccode-bench.timer xccode-learn.service xccode-learn.timer; do
         copy_file "$units/$unit" "$SYSTEMD/$unit"
     done
     if [ "$CHECK" = 1 ]; then
@@ -394,7 +395,7 @@ step_services() {
         return 0
     fi
     systemctl daemon-reload
-    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.path xccode-nft.service xccode-backup.timer; do
+    for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.path xccode-nft.service xccode-backup.timer xccode-bench.timer xccode-learn.timer; do
         systemctl enable "$unit" >/dev/null 2>&1 || true
     done
 }
