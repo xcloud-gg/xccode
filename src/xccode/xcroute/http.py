@@ -8,12 +8,13 @@ provider stays injected — so the app is testable against a mock provider.
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 
 from fastapi import FastAPI
 from fastapi import Request as HTTPRequest
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .router import AUTO, Request, Result, Router
@@ -30,6 +31,7 @@ class ChatRequest(BaseModel):
     model: str = AUTO
     messages: list[Message] = Field(default_factory=list)
     session: str | None = None
+    stream: bool = False
 
 
 def _bearer(header: str | None) -> str | None:
@@ -71,6 +73,30 @@ def _unauthorized() -> JSONResponse:
     return JSONResponse(status_code=401, content={"error": {"message": "bad token"}})
 
 
+def _stream_chunks(model: str, r: Result):
+    """Yield OpenAI-compatible SSE chunks for a completed Result (XC-CODE-001 §4.4).
+
+    xcroute calls the provider non-streaming (OmniRoute's own streaming is not plumbed through yet),
+    so the whole completion is emitted as one delta chunk, then a finish chunk, then [DONE]. Clients
+    that send ``stream: true`` (OpenCode and most OpenAI-compatible tools) require this shape.
+    """
+    base = {
+        "id": f"chatcmpl-{uuid.uuid4().hex}",
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+    }
+
+    def chunk(delta: dict, finish_reason: str | None) -> str:
+        return "data: " + json.dumps(
+            {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}]}
+        ) + "\n\n"
+
+    yield chunk({"role": "assistant", "content": r.text}, None)
+    yield chunk({}, "stop")
+    yield "data: [DONE]\n\n"
+
+
 def create_app(router: Router) -> FastAPI:
     app = FastAPI()
 
@@ -90,6 +116,12 @@ def create_app(router: Router) -> FastAPI:
                 session=session,
             )
         )
+        if body.stream and r.status == 200:
+            return StreamingResponse(
+                _stream_chunks(body.model, r),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
         return _respond(body.model, r)
 
     @app.get("/ctx")
