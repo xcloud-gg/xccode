@@ -167,6 +167,15 @@ EOF
 # USB drive until urd exists. An empty repository means the xccode-backup timer does nothing.
 repository = ""
 EOF
+    # xcroute must start with safe defaults (no tokens -> 401, no pools -> refused) until the
+    # operator's SOPS-provided config replaces this. Without it xcroute.service crash-loops.
+    write_file "$ETC/serve.toml" <<'EOF'
+# xccode-default-config — safe defaults until the operator's SOPS config replaces it.
+# Deploy tooling must OVERWRITE this file unconditionally (never write-if-missing).
+base_url = "http://127.0.0.1:18128"
+tokens = {}
+pools = {}
+EOF
 }
 
 # --- 4. signed release: download, verify, extract into /opt/xcloud/xccode ---------
