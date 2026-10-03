@@ -12,17 +12,30 @@ export OPENCODE_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/xccode/opencode
 export OPENCODE_DISABLE_AUTOUPDATE="${OPENCODE_DISABLE_AUTOUPDATE:-1}"
 
 # Refuse to start inside a repository marked secret: xccode has no local model for SECRET work
-# (XC-CODE-001 §13), so a marked tree must never reach a cloud provider. The working directory is
-# the one place this is known, so the check lives here rather than in the HTTP layer.
-_dir=$(pwd)
-while true; do
-    if [ -e "$_dir/.xccode-secret" ]; then
-        echo "xcc: refusing to start inside a repository marked .xccode-secret" >&2
-        echo "xcc: xccode has no local model for SECRET work; use a different tool here" >&2
-        exit 1
+# (XC-CODE-001 §13), so a marked tree must never reach a cloud provider. Both the working directory
+# and any project-directory argument are checked, with symlinks resolved (pwd -P).
+reject_secret() {
+    _dir=$1
+    while true; do
+        if [ -e "$_dir/.xccode-secret" ]; then
+            echo "xcc: refusing to start inside a repository marked .xccode-secret" >&2
+            echo "xcc: xccode has no local model for SECRET work; use a different tool here" >&2
+            exit 1
+        fi
+        [ "$_dir" = "/" ] && break
+        _dir=$(dirname "$_dir")
+    done
+}
+
+reject_secret "$(pwd -P)"
+for _arg in "$@"; do
+    case "$_arg" in
+        -*) continue ;;
+    esac
+    if [ -d "$_arg" ]; then
+        _resolved=$(cd "$_arg" && pwd -P) || continue
+        reject_secret "$_resolved"
     fi
-    [ "$_dir" = "/" ] && break
-    _dir=$(dirname "$_dir")
 done
 
 exec "$OPENCODE_BIN" "$@"

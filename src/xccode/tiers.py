@@ -173,6 +173,46 @@ _WRAPPERS = {"sudo", "env", "nohup", "time", "timeout", "nice", "ionice", "stdbu
              "xca-aios"}
 _SHELLS = {"bash", "sh", "zsh", "dash", "ksh", "fish"}
 
+# iproute2 accepts unambiguous prefixes for objects and verbs (`ip r d` = `ip route del`). These
+# maps expand the common abbreviations to the canonical form so the classifiers catch them.
+_IP_OBJ = {
+    "a": "address", "ad": "address", "add": "address", "addr": "address", "addre": "address",
+    "l": "link", "li": "link", "lin": "link",
+    "r": "route", "ro": "route", "rou": "route",
+    "n": "neigh", "ne": "neigh", "nei": "neigh", "neig": "neigh",
+    "ru": "rule", "rul": "rule",
+}
+_IP_VERB = {
+    "a": "add", "ad": "add",
+    "d": "del", "de": "del",
+    "f": "flush", "fl": "flush",
+    "rep": "replace", "repl": "replace", "repla": "replace",
+    "ch": "change", "cha": "change", "chan": "change", "chang": "change",
+}
+
+
+def _expand_ip_segment(seg: str) -> str:
+    """Expand `ip` object/verb abbreviations in one segment, if it is an `ip` command."""
+    toks = _tokens(seg)
+    if not toks or toks[0].split("/")[-1] != "ip":
+        return seg
+    i = 1
+    while i < len(toks) and toks[i].startswith("-"):
+        if toks[i] in {"-n", "-netns", "-N"}:
+            i += 2  # option + namespace argument
+        else:
+            i += 1
+    if i < len(toks):
+        toks[i] = _IP_OBJ.get(toks[i], toks[i])
+    if i + 1 < len(toks):
+        toks[i + 1] = _IP_VERB.get(toks[i + 1], toks[i + 1])
+    return " ".join(toks)
+
+
+def _expand_ip_abbreviations(text: str) -> str:
+    """Expand iproute2 abbreviations across a whole command line (one segment at a time)."""
+    return "\n".join(_expand_ip_segment(p) for p in _SEGMENT_SPLIT.split(text))
+
 
 def _tokens(segment: str) -> list[str]:
     try:
@@ -274,7 +314,7 @@ def _touches_protected_path(text: str) -> bool:
 
 def classify(command: str, *, remote: bool = False) -> Classification:
     """Return the tier of a shell command line (the maximum over its parts)."""
-    text = command.strip()
+    text = _expand_ip_abbreviations(command.strip())
     for name, rx in _P3:
         if rx.search(text):
             return Classification(Tier.P3, name)

@@ -60,6 +60,47 @@ def test_launcher_refuses_inside_secret_marked_tree(tmp_path):
     assert not out.exists()  # the fake OpenCode never ran
 
 
+def test_launcher_refuses_when_project_argument_is_marked(tmp_path):
+    marked = tmp_path / "marked"
+    marked.mkdir()
+    (marked / ".xccode-secret").touch()
+    fake = tmp_path / "opencode"
+    fake.write_text('#!/bin/sh\ntouch "$OUT"\n')
+    fake.chmod(0o755)
+    out = tmp_path / "launched.txt"
+    e = {
+        **os.environ,
+        "XCCODE_OPENCODE": str(fake),
+        "OUT": str(out),
+        "HOME": str(tmp_path),
+    }
+    # run from a clean cwd, passing the marked dir as OpenCode's project argument
+    r = subprocess.run(["sh", str(REPO / "install" / "xcc"), str(marked)], env=e, cwd=REPO)
+    assert r.returncode == 1
+    assert not out.exists()
+
+
+def test_launcher_refuses_through_symlink_into_marked_tree(tmp_path):
+    real = tmp_path / "real"
+    real.mkdir()
+    (real / ".xccode-secret").touch()
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    fake = tmp_path / "opencode"
+    fake.write_text('#!/bin/sh\ntouch "$OUT"\n')
+    fake.chmod(0o755)
+    out = tmp_path / "launched.txt"
+    e = {
+        **os.environ,
+        "XCCODE_OPENCODE": str(fake),
+        "OUT": str(out),
+        "HOME": str(tmp_path),
+    }
+    r = subprocess.run(["sh", str(REPO / "install" / "xcc")], env=e, cwd=str(link))
+    assert r.returncode == 1
+    assert not out.exists()
+
+
 def test_shared_opencode_settings_are_operator_owned_minimal():
     cfg = (REPO / "etc" / "opencode" / "opencode.json").read_text()
     assert '"share": "disabled"' in cfg
