@@ -15,5 +15,8 @@
       "type": "local",
       "command": ["/opt/xcloud/xccode/venv/bin/xccode", "mcp"]
     }
-  }
+  },
+  "plugin": ["@mohak34/opencode-notifier"],
+  "instructions": ["/opt/xcloud/xccode/opencode-plugins/shell_strategy.md"],
+  "skills": { "paths": ["/opt/xcloud/xccode/skills/approved"] }
 }

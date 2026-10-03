@@ -176,6 +176,14 @@ base_url = "http://127.0.0.1:18128"
 tokens = {}
 pools = {}
 EOF
+    # vetted plugins + approved skills (bundled, root-owned read-only; §4.3, §4.15).
+    copy_file "$(dirname "$0")/../etc/opencode-plugins/shell_strategy.md" \
+        "$OPT/opencode-plugins/shell_strategy.md" 0644
+    ensure_dir "$OPT/skills/approved/karpathy-guidelines" "root:root" 0755
+    copy_file "$(dirname "$0")/../etc/skills/karpathy-guidelines/SKILL.md" \
+        "$OPT/skills/approved/karpathy-guidelines/SKILL.md" 0644
+    copy_file "$(dirname "$0")/../etc/skills/karpathy-guidelines/EXAMPLES.md" \
+        "$OPT/skills/approved/karpathy-guidelines/EXAMPLES.md" 0644
 }
 
 # --- 4. signed release: download, verify, extract into /opt/xcloud/xccode ---------
@@ -209,6 +217,27 @@ step_venv() {
     python3 -m venv "$OPT/venv"
     echo ">> pip install xccode"
     "$OPT/venv/bin/pip" install --quiet "$src"
+}
+
+# --- 4c. bun runtime: OpenCode v2 installs npm plugins with bun -------------------
+step_runtime() {
+    bun_ver="1.4.2"
+    bun_bin="$OPT/bun/bun-linux-x64/bun"
+    if [ -x "$bun_bin" ]; then
+        echo "already: bun $bun_ver"
+        return 0
+    fi
+    if [ "$CHECK" = 1 ]; then
+        echo "would: install bun $bun_ver (OpenCode v2 npm-plugin runtime, §4.3)"
+        return 0
+    fi
+    echo ">> install bun $bun_ver"
+    mkdir -p "$OPT/bun"
+    curl -fsSL -o "$OPT/bun/bun.zip" \
+        "https://github.com/oven-sh/bun/releases/download/bun-v${bun_ver}/bun-linux-x64.zip"
+    python3 -c "import zipfile; zipfile.ZipFile('$OPT/bun/bun.zip').extractall('$OPT/bun')" \
+        || { echo "install.sh: bun extraction failed" >&2; exit 1; }
+    rm -f "$OPT/bun/bun.zip"
 }
 
 # --- 5. services (systemd units, all loopback) -----------------------------------
@@ -289,6 +318,7 @@ main() {
     step_opt
     step_fetch
     step_venv
+    step_runtime
     step_services
     step_profile
     step_guard
