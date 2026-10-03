@@ -302,7 +302,9 @@ step_dsh() {
     fi
     if [ "$CHECK" = 1 ]; then echo "would: npm install -g @deepseek-ai/dsh@$dsh_ver"; return 0; fi
     echo ">> npm install -g @deepseek-ai/dsh@$dsh_ver"
-    "$npm_bin" install -g "@deepseek-ai/dsh@$dsh_ver"
+    # npm's shebang is `#!/usr/bin/env node` — put the pinned Node 24 first so the install
+    # resolves node 24 (dsh needs ^22.19||>=24) and lands in the pinned prefix, not the system's.
+    PATH="$OPT/node-v24.14.1-linux-x64/bin:$PATH" "$npm_bin" install -g "@deepseek-ai/dsh@$dsh_ver"
 }
 
 # --- 4g. OpenViking: project memory server (native Python, loopback 18180) ---------
@@ -318,6 +320,18 @@ step_openviking() {
     python3 -m venv "$OPT/openviking/venv"
     "$OPT/openviking/venv/bin/pip" install --quiet "openviking==$ov_ver"
     ensure_dir "$STATE/openviking" "xccode:xccode" 0750
+    # Minimal loopback config: local AGFS + local vectordb, no embedder/VLM (summaries empty
+    # until the operator sets embedding.dense.provider and a VLM). Deploy tooling OVERWRITES.
+    write_file "$ETC/ov.conf" <<'EOF'
+{
+  "server": {"host": "127.0.0.1", "port": 18180},
+  "storage": {
+    "workspace": "/var/lib/xcloud/xccode/openviking",
+    "agfs": {"backend": "local"},
+    "vectordb": {"backend": "local"}
+  }
+}
+EOF
 }
 
 # --- 4h. Hermes: headless learner (own venv, pinned tag) --------------------------
@@ -334,14 +348,11 @@ step_hermes() {
         git clone --depth 1 --branch "$hermes_ver" \
             https://github.com/NousResearch/hermes-agent.git "$OPT/hermes"
     fi
-    echo ">> install hermes (uv venv, python 3.11)"
-    if command -v uv >/dev/null 2>&1; then
-        uv venv "$OPT/hermes/.venv" --python 3.11
-        (cd "$OPT/hermes" && uv pip install -e ".[all]")
-    else
-        python3 -m venv "$OPT/hermes/.venv"
-        "$OPT/hermes/.venv/bin/pip" install --quiet -e "$OPT/hermes[all]"
-    fi
+    echo ">> install hermes (own venv, core only)"
+    # Headless learner: core install only — `.[all]` pulls browser/messaging/voice that the
+    # learner profile forbids anyway. Python floor >=3.11,<3.14 (system python3 is 3.13).
+    python3 -m venv "$OPT/hermes/.venv"
+    "$OPT/hermes/.venv/bin/pip" install --quiet -e "$OPT/hermes"
     ensure_dir "$STATE/hermes" "xccode:xccode" 0750
 }
 
