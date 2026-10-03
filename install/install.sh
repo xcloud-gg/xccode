@@ -222,6 +222,9 @@ step_services() {
 step_guard() {
     run "xccode guard apply" "$OPT/venv/bin/xccode" guard apply --config "$ETC/guardrails.toml"
     if [ "$CHECK" != 1 ]; then
+        # Reload each layer so the boundary is live now, not at the next reboot.
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        augenrules --load >/dev/null 2>&1 || true
         systemctl start xccode-nft.service >/dev/null 2>&1 || true
     fi
 }

@@ -143,24 +143,41 @@ def render_audit_rules(accounts: dict[str, int]) -> str:
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def plan(cfg: GuardConfig, accounts: dict[str, int], etc_dir: Path) -> list[GuardWrite]:
-    """The files `guard apply` would write, for the accounts that exist."""
+def plan(
+    cfg: GuardConfig,
+    accounts: dict[str, int],
+    etc_dir: Path,
+    systemd_dir: Path = Path("/etc/systemd/system"),
+    audit_dir: Path = Path("/etc/audit/rules.d"),
+) -> list[GuardWrite]:
+    """The files `guard apply` would write, for the accounts that exist.
+
+    Layer 3 (nft) lives under `/etc/xcloud/xccode` and is loaded by `xccode-nft.service`. Layer 2
+    (the systemd drop-in) and layer 4 (the auditd rules) must live where systemd and auditd actually
+    read them, so they are written to the system directories.
+    """
     writes: list[GuardWrite] = []
     writes.append(GuardWrite(etc_dir / "nft" / "xccode.nft", render_nft(cfg, accounts)))
     aios = accounts.get("aios")
     if aios is not None:
-        dropin = etc_dir / "systemd" / f"user@{aios}.service.d" / "40-xccode-paths.conf"
+        dropin = systemd_dir / f"user@{aios}.service.d" / "40-xccode-paths.conf"
         writes.append(GuardWrite(dropin, render_aios_dropin(aios)))
     audit = render_audit_rules(accounts)
     if audit:
-        writes.append(GuardWrite(etc_dir / "audit" / "xccode.rules", audit))
+        writes.append(GuardWrite(audit_dir / "xccode.rules", audit))
     return writes
 
 
-def apply(cfg: GuardConfig, accounts: dict[str, int], etc_dir: Path) -> list[Path]:
+def apply(
+    cfg: GuardConfig,
+    accounts: dict[str, int],
+    etc_dir: Path,
+    systemd_dir: Path = Path("/etc/systemd/system"),
+    audit_dir: Path = Path("/etc/audit/rules.d"),
+) -> list[Path]:
     """Write the guardrail files. The installer runs this as root; `--check` previews instead."""
     written: list[Path] = []
-    for w in plan(cfg, accounts, etc_dir):
+    for w in plan(cfg, accounts, etc_dir, systemd_dir, audit_dir):
         w.path.parent.mkdir(parents=True, exist_ok=True)
         w.path.write_text(w.content)
         written.append(w.path)

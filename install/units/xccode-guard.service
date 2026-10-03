@@ -1,6 +1,11 @@
 [Unit]
-Description=xccode guardrails apply
+Description=xccode guardrails apply + reload
 
 [Service]
 Type=oneshot
 ExecStart=/opt/xcloud/xccode/venv/bin/xccode guard apply --config /etc/xcloud/xccode/guardrails.toml
+# The drop-in and audit rules are written to the system directories; reload each so the boundary
+# appears the moment an aiOS or xcloud account is created (not at the next reboot).
+ExecStartPost=/usr/sbin/nft -f /etc/xcloud/xccode/nft/xccode.nft
+ExecStartPost=-/usr/sbin/augenrules --load
+ExecStartPost=/usr/bin/systemctl daemon-reload

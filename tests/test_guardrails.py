@@ -75,7 +75,10 @@ def test_audit_rules_only_for_existing_accounts():
 
 
 def test_plan_writes_dropin_only_when_aios_exists(tmp_path):
-    writes = plan(GuardConfig(), parse_passwd(PASSWD), tmp_path)
+    writes = plan(
+        GuardConfig(), parse_passwd(PASSWD), tmp_path,
+        systemd_dir=tmp_path / "systemd", audit_dir=tmp_path / "audit",
+    )
     paths = {str(w.path) for w in writes}
     assert str(tmp_path / "nft" / "xccode.nft") in paths
     assert str(tmp_path / "systemd" / "user@997.service.d" / "40-xccode-paths.conf") in paths
@@ -84,7 +87,10 @@ def test_plan_writes_dropin_only_when_aios_exists(tmp_path):
 
 def test_apply_creates_the_rendered_files(tmp_path):
     cfg = GuardConfig(mesh_cidrs=(DOC_MESH,))
-    written = apply(cfg, parse_passwd(PASSWD), tmp_path)
+    written = apply(
+        cfg, parse_passwd(PASSWD), tmp_path,
+        systemd_dir=tmp_path / "systemd", audit_dir=tmp_path / "audit",
+    )
     assert len(written) == 3
     nft = (tmp_path / "nft" / "xccode.nft").read_text()
     assert "destroy table inet xccode" in nft

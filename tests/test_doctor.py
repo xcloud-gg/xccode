@@ -33,8 +33,8 @@ def host(**overrides) -> Host:
             STATE,
             OPT,
             f"{ETC}/nft/xccode.nft",
-            f"{ETC}/audit/xccode.rules",
-            f"{ETC}/systemd/user@997.service.d/40-xccode-paths.conf",
+            "/etc/audit/rules.d/xccode.rules",
+            "/etc/systemd/system/user@997.service.d/40-xccode-paths.conf",
         }
     )
     return Host(passwd=passwd, gid_to_group=gid_to_group, members=members, existing=existing)
@@ -88,7 +88,9 @@ def test_dropin_not_required_when_aios_is_absent():
     passwd, gid_to_group, members = gather_passwd_group(
         PASSWD.replace("aios:x:997:987", "aios-absent:x:997:987"), GROUP
     )
-    existing = frozenset({ETC, STATE, OPT, f"{ETC}/nft/xccode.nft", f"{ETC}/audit/xccode.rules"})
+    existing = frozenset(
+        {ETC, STATE, OPT, f"{ETC}/nft/xccode.nft", "/etc/audit/rules.d/xccode.rules"}
+    )
     checks = run_checks(Host(passwd, gid_to_group, members, existing))
     assert names(checks)["guard-dropin"] is True
     # audit rules still needed because xcloud exists

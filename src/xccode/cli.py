@@ -13,7 +13,7 @@ from pathlib import Path
 from .advisor import AdvisorRecordError, validate_record
 from .approver import Approver, ApproverError, check_tty_safe
 from .audit import AuditLog
-from .doctor import Host, gather_passwd_group, render, run_checks
+from .doctor import AUDIT_DIR, SYSTEMD_DIR, Host, gather_passwd_group, render, run_checks
 from .gate import GateRefused, execute_plan
 from .guardrails import apply, load_config, parse_passwd, plan
 from .hashing import short
@@ -197,11 +197,11 @@ def cmd_doctor(args) -> int:
     candidates = [
         str(etc), str(state), str(opt),
         str(etc / "nft" / "xccode.nft"),
-        str(etc / "audit" / "xccode.rules"),
+        f"{AUDIT_DIR}/xccode.rules",
     ]
     aios = passwd.get("aios")
     if aios is not None:
-        candidates.append(f"{etc}/systemd/user@{aios[0]}.service.d/40-xccode-paths.conf")
+        candidates.append(f"{SYSTEMD_DIR}/user@{aios[0]}.service.d/40-xccode-paths.conf")
     existing = frozenset(p for p in candidates if Path(p).exists())
     host = Host(
         passwd=passwd,

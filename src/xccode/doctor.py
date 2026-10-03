@@ -9,6 +9,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 NOLOGIN_SHELLS = ("/usr/sbin/nologin", "/sbin/nologin", "/bin/false")
+# Layer 2 (systemd drop-in) and layer 4 (auditd) live in the system directories, not under
+# /etc/xcloud/xccode, because that is the only place systemd and auditd read them.
+SYSTEMD_DIR = "/etc/systemd/system"
+AUDIT_DIR = "/etc/audit/rules.d"
 
 
 @dataclass(frozen=True)
@@ -95,7 +99,7 @@ def run_checks(host: Host) -> list[Check]:
     nft_detail = f"{nft} {'present' if nft_present else 'missing'}"
     checks.append(Check("guard-nft", nft_present, nft_detail))
 
-    audit = f"{host.etc_dir}/audit/xccode.rules"
+    audit = f"{AUDIT_DIR}/xccode.rules"
     need_audit = "aios" in host.passwd or "xcloud" in host.passwd
     audit_present = audit in host.existing
     checks.append(
@@ -108,7 +112,7 @@ def run_checks(host: Host) -> list[Check]:
 
     aios = host.passwd.get("aios")
     if aios is not None:
-        dropin = f"{host.etc_dir}/systemd/user@{aios[0]}.service.d/40-xccode-paths.conf"
+        dropin = f"{SYSTEMD_DIR}/user@{aios[0]}.service.d/40-xccode-paths.conf"
         dropin_present = dropin in host.existing
         dropin_detail = f"{dropin} {'present' if dropin_present else 'missing'}"
         checks.append(Check("guard-dropin", dropin_present, dropin_detail))
