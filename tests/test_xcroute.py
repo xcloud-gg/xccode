@@ -121,6 +121,34 @@ def test_budget_persists_across_restart(tmp_path):
     assert g2.allows("d2", "opencode", "p", 100)  # a new day starts fresh
 
 
+def test_budget_fails_closed_on_corrupt_state(tmp_path):
+    state = tmp_path / "budget.json"
+    state.write_text("{ not valid json")
+    g = BudgetGate(Limits(per_request=100, per_day=1000), state_path=state)
+    assert g.allows("d1", "opencode", "p", 1) is False  # never silently reset to zero
+
+
+def test_budget_concurrent_records_do_not_lose_updates(tmp_path):
+    import threading
+
+    state = tmp_path / "budget.json"
+    g = BudgetGate(Limits(per_request=1_000_000, per_day=1_000_000), state_path=state)
+    n = 50
+
+    def add():
+        g.record("d1", "opencode", "p", 1)
+
+    threads = [threading.Thread(target=add) for _ in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    # the persisted total is exactly n: no lost update, no corrupt file
+    g2 = BudgetGate(Limits(per_request=1_000_000, per_day=1_000_000), state_path=state)
+    assert g2.allows("d1", "opencode", "p", 1_000_000 - n)
+    assert not g2.allows("d1", "opencode", "p", 1_000_000 - n + 1)
+
+
 # ---- decide ----------------------------------------------------------------------------------
 def test_rules_baseline_modes():
     assert mode_from(rules_answers("fix the failing test in parser.py")) == "coding"
