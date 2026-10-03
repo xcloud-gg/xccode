@@ -43,6 +43,23 @@ def test_launcher_passes_arguments_through(tmp_path):
     assert out.read_text().strip() == "run --model coding-strong"
 
 
+def test_launcher_refuses_inside_secret_marked_tree(tmp_path):
+    (tmp_path / ".xccode-secret").touch()
+    fake = tmp_path / "opencode"
+    fake.write_text('#!/bin/sh\ntouch "$OUT"\n')
+    fake.chmod(0o755)
+    out = tmp_path / "launched.txt"
+    e = {
+        **os.environ,
+        "XCCODE_OPENCODE": str(fake),
+        "OUT": str(out),
+        "HOME": str(tmp_path),
+    }
+    r = subprocess.run(["sh", str(REPO / "install" / "xcc")], env=e, cwd=tmp_path)
+    assert r.returncode == 1
+    assert not out.exists()  # the fake OpenCode never ran
+
+
 def test_shared_opencode_settings_are_operator_owned_minimal():
     cfg = (REPO / "etc" / "opencode" / "opencode.json").read_text()
     assert '"share": "disabled"' in cfg
