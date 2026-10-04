@@ -136,7 +136,7 @@ EOF
 
 # --- 2. packages (Debian main only); gitleaks from the signed release (step 4) --
 step_packages() {
-    for pkg in git curl bubblewrap restic auditd python3-venv gpgv gcc g++ pkg-config libssl-dev cmake protobuf-compiler; do
+    for pkg in git curl bubblewrap restic auditd python3-venv gpgv; do
         if dpkg -s "$pkg" >/dev/null 2>&1; then
             echo "already: package $pkg"
         else
@@ -144,8 +144,8 @@ step_packages() {
         fi
     done
     # `uv` is not a Debian package: it is installed into the venv from the signed release, and
-    # gitleaks from its pinned release binary (§11). Both land via the fetch step. gcc/pkg-config/
-    # libssl-dev/cmake/protobuf-compiler build TEI's Rust router (§4.8).
+    # gitleaks from its pinned release binary (§11). Both land via the fetch step. TEI's prebuilt
+    # text-embeddings-router ships as a binary (no Rust build at install time; §4.8).
 }
 
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------
@@ -359,31 +359,25 @@ step_hermes() {
     ensure_dir "$STATE/hermes" "xccode:xccode" 0750
 }
 
-# --- 4i. TEI: local embedder (native Rust build, loopback 18181) -------------------
+# --- 4i. TEI: local embedder (prebuilt binary, loopback 18181) ---------------------
+# Built once at release time (the from-source `cargo install` is ~3-4 h — impractical), shipped as a
+# pinned binary like opencode/gitleaks, verified by its sha256 in versions.lock (XC-CODE-001 §4.8).
 step_tei() {
     tei_ver=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
+    tei_sha=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
+        | sed -n 's/^sha256 = "\(.*\)"$/\1/p')
     router="$OPT/tei/bin/text-embeddings-router"
-    if [ -z "$tei_ver" ]; then echo "skip: no tei pin"; return 0; fi
+    if [ -z "$tei_ver" ] || [ -z "$tei_sha" ]; then echo "skip: no tei pin"; return 0; fi
     if [ -x "$router" ]; then echo "already: tei $tei_ver"; return 0; fi
-    if [ "$CHECK" = 1 ]; then echo "would: build tei $tei_ver (cargo) into $OPT/tei"; return 0; fi
-    # Rust toolchain: rustup-init as a downloaded binary (never piped into a shell).
-    if ! command -v cargo >/dev/null 2>&1; then
-        echo ">> install rustup (binary, no pipe-to-shell)"
-        curl -fsSL -o "$OPT/tei-rustup-init" https://sh.rustup.rs
-        sh "$OPT/tei-rustup-init" -y --default-toolchain stable --profile minimal
-        rm -f "$OPT/tei-rustup-init"
-        export PATH="$HOME/.cargo/bin:$PATH"
-    fi
-    echo ">> fetch tei $tei_ver"
-    if [ ! -d "$OPT/tei/.git" ]; then
-        git clone --depth 1 --branch "$tei_ver" \
-            https://github.com/huggingface/text-embeddings-inference.git "$OPT/tei"
-    fi
-    echo ">> cargo install text-embeddings-router (ort)"
-    # `-F ort` (ONNX Runtime, the README-recommended CPU backend): `-F mkl` fails to link the
-    # Intel BLAS symbols (undefined dgemm_/sgemm_/vsAdd…) and would OOM/slow the install.
-    (cd "$OPT/tei" && cargo install --path router -F ort --root "$OPT/tei")
+    if [ "$CHECK" = 1 ]; then echo "would: download + verify tei $tei_ver (prebuilt)"; return 0; fi
+    echo ">> download tei $tei_ver (prebuilt)"
+    mkdir -p "$OPT/tei/bin"
+    TEI_URL="${TEI_URL:-https://github.com/xcloud-gg/xccode/releases/download/tei-$tei_ver/text-embeddings-router}"
+    curl -fsSL -o "$router" "$TEI_URL"
+    echo "$tei_sha  $router" | sha256sum -c - \
+        || { echo "install.sh: tei checksum mismatch" >&2; exit 1; }
+    chmod +x "$router"
     ensure_dir "$STATE/tei" "xccode:xccode" 0750
 }
 
