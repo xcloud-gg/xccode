@@ -25,7 +25,7 @@ version = "0.4.23"
 
 [tei]
 version = "v1.9.4"
-sha256 = ""
+sha256 = "fbe70ee2567f1e61f9b4b977eeee146b2fc4f01a61977a7196ace6badeca566f"
 
 [dsh]
 version = "0.2.0-rc.2"
