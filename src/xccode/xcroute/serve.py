@@ -15,6 +15,7 @@ from .auth import TokenAuth
 from .budget import BudgetGate, Limits
 from .decide import PoolScore
 from .events import EventLog
+from .memory import OPENVIKING_URL, OpenVikingMemory
 from .provider import OmniRouteProvider
 from .router import PoolConfig, Router
 
@@ -29,6 +30,7 @@ def _default_limits() -> Limits:
 class ServeConfig:
     base_url: str = DEFAULT_BASE_URL
     api_key: str = ""  # bearer key for the private OmniRoute instance (§4.5)
+    openviking_url: str = OPENVIKING_URL  # read-only memory door (§4.7)
     tokens: dict[str, str] = field(default_factory=dict)  # agent -> sha256 hex digest
     pools: dict[str, PoolConfig] = field(default_factory=dict)
     scores: dict[str, PoolScore] = field(default_factory=dict)
@@ -63,6 +65,7 @@ def load_config(path: Path) -> ServeConfig:
     return ServeConfig(
         base_url=str(data.get("base_url", DEFAULT_BASE_URL)),
         api_key=str(data.get("api_key", "")),
+        openviking_url=str(data.get("openviking_url", OPENVIKING_URL)),
         tokens=dict(data.get("tokens", {})),
         pools=pools,
         scores=scores,
@@ -81,4 +84,5 @@ def build_router(cfg: ServeConfig) -> Router:
         provider=OmniRouteProvider(base_url=cfg.base_url, api_key=cfg.api_key),
         events=EventLog(cfg.state_dir / "events.db"),
         pending_dir=cfg.state_dir / "learn/pending",
+        memory=OpenVikingMemory(base_url=cfg.openviking_url),
     )

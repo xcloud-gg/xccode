@@ -27,9 +27,10 @@ def _token() -> str:
     return os.environ.get("XCC_TOKEN", "")
 
 
-def _ctx(path: str = "/ctx") -> dict:
+def _ctx(params: dict) -> dict:
     r = httpx.get(
-        f"{XCROUTE}{path}",
+        f"{XCROUTE}/ctx",
+        params=params,
         headers={"Authorization": f"Bearer {_token()}"},
         timeout=10,
     )
@@ -37,30 +38,33 @@ def _ctx(path: str = "/ctx") -> dict:
     return r.json()
 
 
-def _ctx_items(kind: str, ref: str) -> str:
+def _ctx_items(kind: str, ref: str, params: dict) -> str:
     try:
-        data = _ctx("/ctx")
+        data = _ctx(params)
     except httpx.HTTPStatusError as e:
         return f"({kind}) xcroute /ctx returned {e.response.status_code}: {e.response.text}"
     items = data.get("items", [])
     if not items:
-        return f"({kind}) no memory yet for {ref!r} — OpenViking is wired in a later increment (M5)"
+        return (
+            f"({kind}) no memory yet for {ref!r} — the OpenViking store is "
+            "populated in a later increment"
+        )
     return "\n".join(json.dumps(i, sort_keys=True) for i in items)
 
 
 def ctx_brief(repo: str) -> str:
     """Repository abstract, overview, dated rules and pitfalls (at most ~1500 tokens)."""
-    return _ctx_items("ctx_brief", repo)
+    return _ctx_items("ctx_brief", repo, {"op": "brief", "repo": repo})
 
 
 def ctx_search(query: str) -> str:
     """Search the repository's memory for ``query``."""
-    return _ctx_items("ctx_search", query)
+    return _ctx_items("ctx_search", query, {"op": "search", "q": query})
 
 
 def ctx_read(path: str, tier: str = "L1") -> str:
     """Read a memory entry by path and tier (L0 abstract / L1 overview / L2 full)."""
-    return _ctx_items("ctx_read", path)
+    return _ctx_items("ctx_read", path, {"op": "read", "uri": path, "tier": tier})
 
 
 def _job(job_id: str) -> str:

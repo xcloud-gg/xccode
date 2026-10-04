@@ -125,11 +125,26 @@ def create_app(router: Router) -> FastAPI:
         return _respond(body.model, r)
 
     @app.get("/ctx")
-    def ctx(http: HTTPRequest):
+    def ctx(
+        http: HTTPRequest,
+        op: str = "read",
+        uri: str | None = None,
+        tier: str = "L1",
+        q: str | None = None,
+        repo: str | None = None,
+    ):
         agent = router.auth.agent_for(_bearer(http.headers.get("authorization")))
         if agent is None:
             return _unauthorized()
-        # read-only memory door; wired to OpenViking in a later increment
+        if router.memory is None:
+            return {"agent": agent, "items": []}
+        if op == "search" and q:
+            return {"agent": agent, "items": router.memory.search(q)}
+        if op == "brief" and repo:
+            return {"agent": agent, "items": router.memory.brief(repo)}
+        if op == "read" and uri:
+            content = router.memory.read(uri, tier)
+            return {"agent": agent, "items": [{"uri": uri, "tier": tier, "content": content}]}
         return {"agent": agent, "items": []}
 
     @app.post("/learn")

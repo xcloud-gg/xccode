@@ -123,6 +123,50 @@ def test_learn_door_requires_token(tmp_path):
     assert client.post("/learn", json={"task": "x"}).status_code == 401
 
 
+def test_ctx_door_reads_memory(tmp_path):
+    from xccode.xcroute.memory import OpenVikingMemory
+
+    class FakeMemory(OpenVikingMemory):
+        def read(self, uri, tier="L1"):
+            return "hello memory"
+
+        def search(self, query, max_chars=1500):
+            return [{"uri": "viking://x", "content": "found"}]
+
+        def brief(self, repo):
+            return [{"uri": "viking://projects/x", "content": "brief"}]
+
+    router = _router(tmp_path)
+    router.memory = FakeMemory(base_url="http://ov.test")
+    client = TestClient(create_app(router))
+    r = client.get(
+        "/ctx",
+        params={"op": "read", "uri": "viking://x", "tier": "L2"},
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert r.status_code == 200
+    assert r.json()["items"][0]["content"] == "hello memory"
+    r2 = client.get(
+        "/ctx", params={"op": "search", "q": "x"}, headers={"Authorization": "Bearer secret"}
+    )
+    assert r2.json()["items"][0]["content"] == "found"
+    r3 = client.get(
+        "/ctx", params={"op": "brief", "repo": "xccode"}, headers={"Authorization": "Bearer secret"}
+    )
+    assert r3.json()["items"][0]["content"] == "brief"
+
+
+def test_ctx_door_without_memory_returns_empty(tmp_path):
+    client = _client(tmp_path)
+    r = client.get(
+        "/ctx",
+        params={"op": "read", "uri": "viking://x"},
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert r.status_code == 200
+    assert r.json()["items"] == []
+
+
 def test_chat_completion_streaming_sse(tmp_path):
     client = _client(tmp_path)
     r = client.post(

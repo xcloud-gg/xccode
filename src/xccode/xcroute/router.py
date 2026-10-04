@@ -23,6 +23,7 @@ from .events import EventLog, RoutingEvent
 from .guard import redact_messages
 from .learn import intake
 from .markers import RepoPolicy, repo_policy
+from .memory import OpenVikingMemory
 
 AUTO = "xc/auto"
 
@@ -80,6 +81,7 @@ class Router:
     role_by_prompt_hash: dict[str, str] = field(default_factory=dict)
     repo_overrides: dict[str, RepoPolicy] = field(default_factory=dict)
     pending_dir: Path = Path("/var/lib/xcloud/xccode/learn/pending")
+    memory: OpenVikingMemory | None = None
     lam: float = 0.2
     mu: float = 0.1
     tracker: TurnTracker = field(default_factory=TurnTracker)
