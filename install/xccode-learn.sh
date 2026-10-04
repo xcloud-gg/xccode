@@ -3,8 +3,8 @@
 #
 # Headless only: runs as the `xccode` account from `xccode-learn.timer`, never interactively.
 # The pre-check skips the run when there are no new digests, so an empty night costs nothing.
-# Hermes's restricted `learner` profile (memory + skill_manage + read digests only — no
-# terminal/browser/web) is enforced by its toolset; the model provider is xcroute (§4.9).
+# Hermes runs with only the `memory` and `skills` toolsets (no terminal/browser/web); the model
+# provider is xcroute, set in ~xccode/.config/hermes/config.yaml (§4.9).
 set -eu
 
 STATE="/var/lib/xcloud/xccode"
@@ -26,5 +26,6 @@ if [ -z "$digest" ]; then
 fi
 
 echo "xccode-learn: running Hermes learner over $(echo "$digest" | wc -c) bytes of digests"
-exec "$HERMES" chat --profile learner --non-interactive \
-    "Review these finished-session digests and propose facts, preferences, pitfalls, and dated rules (no terminal/browser/web). Digests: $digest"
+# --query-file - reads the prompt from stdin, so the digest text is never shell-interpreted.
+printf '%s\n' "Review these finished-session digests and propose facts, preferences, pitfalls, and dated rules (no terminal/browser/web). Digests: $digest" \
+    | "$HERMES" chat -t memory,skills --oneshot --query-file - --quiet

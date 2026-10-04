@@ -335,11 +335,24 @@ step_openviking() {
     python3 -m venv "$OPT/openviking/venv"
     "$OPT/openviking/venv/bin/pip" install --quiet "openviking==$ov_ver"
     ensure_dir "$STATE/openviking" "xccode:xccode" 0750
-    # Minimal loopback config: local AGFS + local vectordb, no embedder/VLM (summaries empty
-    # until the operator sets embedding.dense.provider and a VLM). Deploy tooling OVERWRITES.
+    # Local AGFS + local vectordb. The dense embedder is xccode's own TEI (an OpenAI-compatible
+    # endpoint on 127.0.0.1:18181, 1024-dim Qwen3-Embedding-0.6B) — no llama-cpp local embedder, so
+    # no third-party model download. The VLM (semantic extraction of entities/preferences) is left
+    # empty until the operator points it at xcroute/OmniRoute (see OPERATOR-KEYS.md). Deploy tooling
+    # OVERWRITES this file. NOTE: the OpenViking vectordb collection is dimension-locked; switching
+    # the embedder dimension requires wiping /var/lib/xcloud/xccode/openviking.
     write_file "$ETC/ov.conf" <<'EOF'
 {
   "server": {"host": "127.0.0.1", "port": 18180},
+  "embedding": {
+    "dense": {
+      "provider": "openai",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "api_base": "http://127.0.0.1:18181/v1",
+      "dimension": 1024,
+      "input": "text"
+    }
+  },
   "storage": {
     "workspace": "/var/lib/xcloud/xccode/openviking",
     "agfs": {"backend": "local"},
@@ -369,6 +382,17 @@ step_hermes() {
     python3 -m venv "$OPT/hermes/.venv"
     "$OPT/hermes/.venv/bin/pip" install --quiet -e "$OPT/hermes"
     ensure_dir "$STATE/hermes" "xccode:xccode" 0750
+    # Hermes's model is xcroute (an OpenAI-compatible endpoint). The api_key (the `hermes` token
+    # from serve.toml) is operator-owned — left unset here; SOPS/deploy tooling fills it. The
+    # config lives in the xccode account's home (which is the state dir).
+    ensure_dir "$STATE/.config/hermes" "xccode:xccode" 0750
+    write_file "$STATE/.config/hermes/config.yaml" <<'EOF'
+model:
+  default: "xc/auto"
+  provider: "custom"
+  base_url: "http://127.0.0.1:18080/v1"
+  # api_key: "<hermes token>"   # operator fills; matches serve.toml [tokens] hermes
+EOF
 }
 
 # --- 4i. TEI: local embedder (prebuilt binary, loopback 18181) ---------------------
