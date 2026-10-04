@@ -289,9 +289,21 @@ step_omniroute() {
     echo ">> install OmniRoute deps (bun)"
     (cd "$omni_dir" && "$bun_bin" install)
     echo ">> build OmniRoute (node $node_ver)"
-    (cd "$omni_dir" && "$node_bin" --max-old-space-size=8192 scripts/build/build-next-isolated.mjs)
+    # Turbopack is OmniRoute's default bundler but deadlocks on the production build (the spawned
+    # `next-build` process stalls with 0 CPU and no output after "Creating an optimized production
+    # build"; seen on thor, 24 vCPU / 31 GiB — not a memory limit). OMNIROUTE_USE_TURBOPACK=0 is
+    # OmniRoute's own documented escape hatch to webpack (build-next-isolated.mjs reads it); webpack
+    # completes in ~2.5 min. (XC-CODE-001 §4.5)
+    (cd "$omni_dir" && OMNIROUTE_USE_TURBOPACK=0 "$node_bin" --max-old-space-size=8192 scripts/build/build-next-isolated.mjs)
     # OmniRoute's data dir must be writable by the xccode service user, not root.
     ensure_dir "$STATE/omniroute" "xccode:xccode" 0700
+    # The build runs as root but the service runs as xccode; OmniRoute's startup regenerates its
+    # fumadocs MDX (`.source/`) and touches the Next.js build output (`.build/next`, `dist`), so
+    # those runtime-writable trees must belong to xccode or the service crash-loops with
+    # "Failed to write to output file ... permission denied".
+    for d in "$omni_dir/.source" "$omni_dir/.build" "$omni_dir/dist"; do
+        [ -d "$d" ] && chown -R xccode:xccode "$d" 2>/dev/null || true
+    done
 }
 
 # --- 4f. dsh (DeepSeek Harness): npm package under the pinned Node runtime ---------
@@ -453,6 +465,19 @@ step_profile() {
     # Upcoming: plugins, native skills, opencode serve user unit.
 }
 
+# --- 9. collect: marius's user units (hourly + session end) ------------------------
+step_collect() {
+    copy_file "$(dirname "$0")/xccode-collect.sh" "$OPT/bin/xccode-collect.sh" 0755
+    # User units live in the operator's home, not /etc/systemd/system: they run as the desktop
+    # user and only exist when there is a desktop session (linger not required — the timer is
+    # wanted-by default.target in the user manager). Enabling happens on first login.
+    udir="/home/$OPERATOR/.config/systemd/user"
+    ensure_dir "$udir" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/units/xccode-collect.service" "$udir/xccode-collect.service"
+    copy_file "$(dirname "$0")/units/xccode-collect.timer" "$udir/xccode-collect.timer"
+    chown "$OPERATOR:$OPERATOR" "$udir/xccode-collect.service" "$udir/xccode-collect.timer" 2>/dev/null || true
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
@@ -469,9 +494,10 @@ main() {
     step_tei
     step_services
     step_profile
+    step_collect
     step_guard
     step_restore
-    # Upcoming increments: collect/learn/bench timers (as their commands land), full profile.
+    # Upcoming increments: full profile.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
