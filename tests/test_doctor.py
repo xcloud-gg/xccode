@@ -3,20 +3,20 @@ from xccode.doctor import Check, Host, gather_passwd_group, groups_of, render, r
 PASSWD = "\n".join(
     [
         "root:x:0:0:root:/root:/bin/bash",
-        "marius:x:1000:1000::/home/marius:/bin/bash",
-        "xccode:x:1001:1001::/nonexistent:/usr/sbin/nologin",
-        "aios:x:997:987::/nonexistent:/usr/sbin/nologin",
-        "xcloud:x:1002:1002::/nonexistent:/usr/sbin/nologin",
+        "xcloud:x:1000:1000::/home/xcloud:/bin/bash",
+        "marius:x:1001:1001::/home/marius:/bin/bash",
+        "xccode:x:997:989::/nonexistent:/usr/sbin/nologin",
+        "aios:x:996:986::/nonexistent:/usr/sbin/nologin",
     ]
 )
 GROUP = "\n".join(
     [
         "root:x:0:",
-        "marius:x:1000:",
-        "xccode:x:1001:",
-        "xccode-users:x:2000:marius",
-        "aios:x:987:",
-        "xcloud:x:1002:",
+        "xcloud:x:1000:",
+        "marius:x:1001:",
+        "xccode:x:989:",
+        "xccode-users:x:2000:xcloud",
+        "aios:x:986:",
     ]
 )
 
@@ -34,7 +34,7 @@ def host(**overrides) -> Host:
             OPT,
             f"{ETC}/nft/xccode.nft",
             "/etc/audit/rules.d/xccode.rules",
-            "/etc/systemd/system/user@997.service.d/40-xccode-paths.conf",
+            "/etc/systemd/system/user@996.service.d/40-xccode-paths.conf",
         }
     )
     return Host(passwd=passwd, gid_to_group=gid_to_group, members=members, existing=existing)
@@ -51,8 +51,8 @@ def test_a_healthy_install_is_all_green():
 
 def test_xccode_with_a_login_shell_is_red():
     passwd, gid_to_group, members = gather_passwd_group(
-        PASSWD.replace("xccode:x:1001:1001::/nonexistent:/usr/sbin/nologin",
-                       "xccode:x:1001:1001::/nonexistent:/bin/bash"),
+        PASSWD.replace("xccode:x:997:989::/nonexistent:/usr/sbin/nologin",
+                       "xccode:x:997:989::/nonexistent:/bin/bash"),
         GROUP,
     )
     h = host()
@@ -60,8 +60,8 @@ def test_xccode_with_a_login_shell_is_red():
     assert names(checks)["account-xccode"] is False
 
 
-def test_marius_missing_from_xccode_users_is_red():
-    group = GROUP.replace("xccode-users:x:2000:marius", "xccode-users:x:2000:")
+def test_operator_missing_from_xccode_users_is_red():
+    group = GROUP.replace("xccode-users:x:2000:xcloud", "xccode-users:x:2000:")
     passwd, gid_to_group, members = gather_passwd_group(PASSWD, group)
     h = host()
     checks = run_checks(Host(passwd, gid_to_group, members, h.existing))
@@ -70,7 +70,7 @@ def test_marius_missing_from_xccode_users_is_red():
 
 def test_aios_in_xccode_users_is_red():
     passwd, gid_to_group, members = gather_passwd_group(
-        PASSWD, GROUP.replace("xccode-users:x:2000:marius", "xccode-users:x:2000:marius,aios")
+        PASSWD, GROUP.replace("xccode-users:x:2000:xcloud", "xccode-users:x:2000:xcloud,aios")
     )
     h = host()
     checks = run_checks(Host(passwd, gid_to_group, members, h.existing))
@@ -86,7 +86,7 @@ def test_missing_guard_files_are_red():
 
 def test_dropin_not_required_when_aios_is_absent():
     passwd, gid_to_group, members = gather_passwd_group(
-        PASSWD.replace("aios:x:997:987", "aios-absent:x:997:987"), GROUP
+        PASSWD.replace("aios:x:996:986", "aios-absent:x:996:986"), GROUP
     )
     existing = frozenset(
         {ETC, STATE, OPT, f"{ETC}/nft/xccode.nft", "/etc/audit/rules.d/xccode.rules"}
@@ -101,7 +101,7 @@ def test_groups_of_includes_primary_group():
     passwd, gid_to_group, members = gather_passwd_group(PASSWD, GROUP)
     h = Host(passwd, gid_to_group, members, frozenset())
     assert "xccode" in groups_of(h, "xccode")  # primary group
-    assert "xccode-users" in groups_of(h, "marius")  # supplementary
+    assert "xccode-users" in groups_of(h, "xcloud")  # supplementary (operator)
 
 
 def test_render_summarises():

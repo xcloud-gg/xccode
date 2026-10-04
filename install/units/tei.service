@@ -7,7 +7,11 @@ Type=exec
 User=xccode
 Group=xccode
 Environment=HUGGINGFACE_HUB_CACHE=/var/lib/xcloud/xccode/tei
-ExecStart=/opt/xcloud/xccode/tei/bin/text-embeddings-router --model-id Qwen/Qwen3-Embedding-0.6B --port 18181 --hostname 127.0.0.1
+# --max-batch-tokens bounds both the warmup sequence and the per-request truncation. Qwen3-Embedding-0.6B
+# has a 32K context; TEI's warmup does a full causal-attention forward pass on min(max_input_length,
+# max_batch_tokens) = 16384 tokens by default, whose attention scores (16 heads × 16K × 16K × 4 B ≈ 17 GB)
+# OOM the host. 512 tokens keeps RSS ~1.8 GB and warmup ~6 s (XC-CODE-001 §4.8).
+ExecStart=/opt/xcloud/xccode/tei/bin/text-embeddings-router --model-id Qwen/Qwen3-Embedding-0.6B --port 18181 --hostname 127.0.0.1 --max-batch-tokens 512
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true
