@@ -1,4 +1,5 @@
-"""`xccode` command line: classify, submit and run P3 plans, and the operator's approver."""
+"""`xccode` command line: classify, submit and run P3 plans, the approver, guardrails, and the
+learning pipeline (collect/bench/serve/mcp/oac)."""
 
 from __future__ import annotations
 
@@ -269,6 +270,24 @@ def cmd_bench(args) -> int:
     return 0
 
 
+def cmd_collect(args) -> int:
+    """Collect finished sessions/notes into digests, redact, and post to /learn (§6.1)."""
+    from .collect import run
+
+    token = os.environ.get("XCC_TOKEN", args.token or "")
+    n, posted = run(
+        sessions_dir=Path(args.sessions_dir),
+        thoughts_dir=Path(args.thoughts_dir),
+        token=token,
+        spool_dir=Path(args.spool_dir),
+    )
+    if token:
+        print(f"collect: {n} digests, {posted} posted")
+    else:
+        print(f"collect: {n} digests spooled (no XCC_TOKEN set; /learn not posted)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -312,6 +331,18 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--base-url", default="http://127.0.0.1:18128")
     b.add_argument("--api-key", default="")
     b.set_defaults(fn=cmd_bench)
+    c = sub.add_parser("collect", help="collect finished sessions into learning digests (§6.1)")
+    c.add_argument(
+        "--sessions-dir", type=Path, default=Path.home() / ".local/share/xccode/opencode"
+    )
+    c.add_argument(
+        "--thoughts-dir", type=Path, default=Path.home() / ".local/share/xccode/thoughts"
+    )
+    c.add_argument(
+        "--spool-dir", type=Path, default=Path.home() / ".local/share/xccode/collect"
+    )
+    c.add_argument("--token", default="", help="operator token for /learn (or XCC_TOKEN)")
+    c.set_defaults(fn=cmd_collect)
     args = ap.parse_args(argv)
     return args.fn(args)
 

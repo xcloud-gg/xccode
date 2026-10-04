@@ -1,0 +1,14 @@
+[Unit]
+Description=xccode learning collection (OpenCode sessions + plan/review notes)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/xcloud/xccode/bin/xccode-collect.sh
+# The operator's token for xcroute's /learn door, from an operator-owned env file (SOPS; mode
+# 0600). If the file is absent the token is empty and collect still spools locally — safe default.
+EnvironmentFile=-%h/.config/xccode/collect.env
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
