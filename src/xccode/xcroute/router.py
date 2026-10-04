@@ -7,6 +7,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from .auth import TokenAuth
 from .budget import BudgetGate
@@ -20,6 +21,7 @@ from .decide import (
 )
 from .events import EventLog, RoutingEvent
 from .guard import redact_messages
+from .learn import intake
 from .markers import RepoPolicy, repo_policy
 
 AUTO = "xc/auto"
@@ -77,9 +79,14 @@ class Router:
     events: EventLog
     role_by_prompt_hash: dict[str, str] = field(default_factory=dict)
     repo_overrides: dict[str, RepoPolicy] = field(default_factory=dict)
+    pending_dir: Path = Path("/var/lib/xcloud/xccode/learn/pending")
     lam: float = 0.2
     mu: float = 0.1
     tracker: TurnTracker = field(default_factory=TurnTracker)
+
+    def learn(self, digest: dict) -> tuple[bool, list[str]]:
+        """The ``/learn`` intake: verifier-lite gates the digest, then it is written to pending."""
+        return intake(self.pending_dir, digest)
 
     def handle(self, req: Request, now: float | None = None) -> Result:
         now = time.time() if now is None else now

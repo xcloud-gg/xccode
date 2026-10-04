@@ -80,4 +80,5 @@ def build_router(cfg: ServeConfig) -> Router:
         budget=BudgetGate(cfg.limits, state_path=cfg.state_dir / "budget.json"),
         provider=OmniRouteProvider(base_url=cfg.base_url, api_key=cfg.api_key),
         events=EventLog(cfg.state_dir / "events.db"),
+        pending_dir=cfg.state_dir / "learn/pending",
     )

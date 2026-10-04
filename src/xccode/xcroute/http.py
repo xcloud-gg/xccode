@@ -133,12 +133,17 @@ def create_app(router: Router) -> FastAPI:
         return {"agent": agent, "items": []}
 
     @app.post("/learn")
-    def learn(http: HTTPRequest):
+    def learn(body: dict, http: HTTPRequest):
         agent = router.auth.agent_for(_bearer(http.headers.get("authorization")))
         if agent is None:
             return _unauthorized()
-        # learning intake; wired to the Hermes learner in a later increment
-        return {"queued": 0}
+        queued, problems = router.learn(body)
+        if problems:
+            return JSONResponse(
+                status_code=400,
+                content={"queued": 0, "agent": agent, "rejected": problems},
+            )
+        return {"queued": 1, "agent": agent, "id": body.get("id")}
 
     @app.get("/events")
     def events(http: HTTPRequest):

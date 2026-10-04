@@ -27,6 +27,7 @@ def _router(tmp_path, token="secret", provider=None):
         budget=BudgetGate(Limits(per_request=1_000_000, per_day=100_000_000)),
         provider=provider or default_provider,
         events=EventLog(tmp_path / "events.db"),
+        pending_dir=tmp_path / "learn/pending",
     )
 
 
@@ -88,6 +89,38 @@ def test_ctx_door_requires_token(tmp_path):
     client = _client(tmp_path)
     assert client.get("/ctx").status_code == 401
     assert client.get("/ctx", headers={"Authorization": "Bearer secret"}).status_code == 200
+
+
+def test_learn_door_queues_a_valid_digest(tmp_path):
+    from xccode.xcroute.learn import digest_id
+
+    content = {
+        "source": "thoughts",
+        "repo": "xccode",
+        "task": "fix the thing",
+        "files_touched": ["src/a.py"],
+        "commands": ["pytest"],
+        "outcome": "tests pass",
+        "notes": "reviewed",
+    }
+    digest = {"id": digest_id(content), "collected_at": "2026-10-04T00:00:00Z", **content}
+    client = _client(tmp_path)
+    r = client.post("/learn", json=digest, headers={"Authorization": "Bearer secret"})
+    assert r.status_code == 200
+    assert r.json()["queued"] == 1
+    assert (tmp_path / "learn/pending" / f"{digest['id']}.json").exists()
+
+
+def test_learn_door_rejects_a_malformed_digest(tmp_path):
+    client = _client(tmp_path)
+    r = client.post("/learn", json={"task": "no id"}, headers={"Authorization": "Bearer secret"})
+    assert r.status_code == 400
+    assert r.json()["queued"] == 0
+
+
+def test_learn_door_requires_token(tmp_path):
+    client = _client(tmp_path)
+    assert client.post("/learn", json={"task": "x"}).status_code == 401
 
 
 def test_chat_completion_streaming_sse(tmp_path):
