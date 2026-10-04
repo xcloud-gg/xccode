@@ -521,12 +521,12 @@ step_tokens() {
     {
         echo "# xccode-default-config — tokens generated at install; pools/budget set by the operator (SOPS)."
         echo 'base_url = "http://127.0.0.1:18128"'
-        echo "tokens = {"
+        echo "[tokens]"
         while IFS='=' read -r agent token; do
-            printf '  %s = "%s"\n' "$agent" "$(printf %s "$token" | sha256sum | cut -d' ' -f1)"
+            printf '%s = "%s"\n' "$agent" "$(printf %s "$token" | sha256sum | cut -d' ' -f1)"
         done < "$tokfile"
-        echo "}"
-        echo "pools = {}"
+        echo ""
+        echo "[pools]"
     } > "$ETC/serve.toml"
     # Distribute the two raw tokens consumed by xccode's own services.
     hermes_token="$(sed -n 's/^hermes=//p' "$tokfile")"
