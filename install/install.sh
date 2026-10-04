@@ -502,6 +502,60 @@ step_collect() {
     chown "$OPERATOR:$OPERATOR" "$udir/xccode-collect.service" "$udir/xccode-collect.timer" 2>/dev/null || true
 }
 
+# --- 10. tokens: the five xcroute agent tokens (generated here, not operator-provided) -----
+step_tokens() {
+    tokfile="$ETC/tokens.env"
+    if [ -f "$tokfile" ]; then echo "already: tokens"; return 0; fi
+    if [ "$CHECK" = 1 ]; then echo "would: generate the five xcroute agent tokens"; return 0; fi
+    echo ">> generate xcroute agent tokens"
+    # Raw tokens land in root:xccode 0640; only their sha256 digests go into serve.toml. Consumers
+    # read the raw token they need from here (the Hermes config.yaml, OpenViking's VLM, xccode-mcp).
+    : > "$tokfile.tmp"
+    for agent in opencode hermes dsh-bench dsh-job openviking; do
+        printf '%s=%s\n' "$agent" "$(openssl rand -hex 32)" >> "$tokfile.tmp"
+    done
+    chown root:xccode "$tokfile.tmp" 2>/dev/null || true
+    chmod 0640 "$tokfile.tmp"
+    mv "$tokfile.tmp" "$tokfile"
+    # serve.toml carries the digests only; pools/budget stay operator-configured (SOPS).
+    {
+        echo "# xccode-default-config — tokens generated at install; pools/budget set by the operator (SOPS)."
+        echo 'base_url = "http://127.0.0.1:18128"'
+        echo "tokens = {"
+        while IFS='=' read -r agent token; do
+            printf '  %s = "%s"\n' "$agent" "$(printf %s "$token" | sha256sum | cut -d' ' -f1)"
+        done < "$tokfile"
+        echo "}"
+        echo "pools = {}"
+    } > "$ETC/serve.toml"
+    # Distribute the two raw tokens consumed by xccode's own services.
+    hermes_token="$(sed -n 's/^hermes=//p' "$tokfile")"
+    openviking_token="$(sed -n 's/^openviking=//p' "$tokfile")"
+    if [ -n "$hermes_token" ]; then
+        ensure_dir "$STATE/.config/hermes" "xccode:xccode" 0750
+        cat > "$STATE/.config/hermes/config.yaml" <<EOF
+model:
+  default: "xc/auto"
+  provider: "custom"
+  base_url: "http://127.0.0.1:18080/v1"
+  api_key: "$hermes_token"
+EOF
+        chown xccode:xccode "$STATE/.config/hermes/config.yaml" 2>/dev/null || true
+    fi
+    if [ -n "$openviking_token" ]; then
+        python3 - "$ETC/ov.conf" "$openviking_token" <<'PY'
+import json, sys
+path, token = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    cfg = json.load(f)
+cfg["vlm"] = {"provider": "openai", "model": "xc/auto",
+              "api_base": "http://127.0.0.1:18080/v1", "api_key": token}
+with open(path, "w") as f:
+    json.dump(cfg, f, indent=2)
+PY
+    fi
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
@@ -519,6 +573,7 @@ main() {
     step_services
     step_profile
     step_collect
+    step_tokens
     step_guard
     step_restore
     # Upcoming increments: full profile.
