@@ -9,10 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 NOLOGIN_SHELLS = ("/usr/sbin/nologin", "/sbin/nologin", "/bin/false")
-# The operator account on thor (XC-CODE-001 §14, host-spec-thor §14): the human admin who gets the
-# `xcc` launcher and the OpenCode profile. `install.sh --operator <login>` adds this account to
-# `xccode-users`; the service accounts (`xccode`, `aios`) never are.
-OPERATOR = "xcloud"
 # Layer 2 (systemd drop-in) and layer 4 (auditd) live in the system directories, not under
 # /etc/xcloud/xccode, because that is the only place systemd and auditd read them.
 SYSTEMD_DIR = "/etc/systemd/system"
@@ -63,22 +59,22 @@ def run_checks(host: Host) -> list[Check]:
     else:
         checks.append(Check("account-xccode", True, "xccode exists with no login shell"))
 
-    if OPERATOR not in host.passwd:
-        checks.append(Check("account-operator", False, f"{OPERATOR} does not exist"))
+    if "marius" not in host.passwd:
+        checks.append(Check("account-marius", False, "marius does not exist"))
     else:
-        checks.append(Check("account-operator", True, f"{OPERATOR} exists"))
+        checks.append(Check("account-marius", True, "marius exists"))
 
     if "xccode-users" in host.members:
         members = host.members["xccode-users"]
-        if OPERATOR in members:
-            checks.append(Check("group-xccode-users", True, f"xccode-users contains {OPERATOR}"))
+        if "marius" in members:
+            checks.append(Check("group-xccode-users", True, "xccode-users contains marius"))
         else:
-            checks.append(Check("group-xccode-users", False, f"{OPERATOR} is not in xccode-users"))
+            checks.append(Check("group-xccode-users", False, "marius is not in xccode-users"))
     else:
         checks.append(Check("group-xccode-users", False, "group xccode-users does not exist"))
 
     xccode_groups = groups_of(host, "xccode") | {"xccode", "xccode-users"}
-    for name in ("aios",):
+    for name in ("aios", "xcloud"):
         if name in host.passwd:
             overlap = groups_of(host, name) & xccode_groups
             if overlap:
