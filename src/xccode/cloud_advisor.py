@@ -133,4 +133,8 @@ class CloudAdvisor:
             r = httpx.post(ANTHROPIC_URL, json=body, headers=headers, timeout=120.0)
         r.raise_for_status()
         data = r.json()
-        return data["content"][0]["text"]
+        # A reasoning model may emit a "thinking" block before the "text" block; collect all text.
+        text = "".join(
+            b.get("text", "") for b in data.get("content", []) if b.get("type") == "text"
+        )
+        return text
