@@ -105,3 +105,19 @@ def test_shared_opencode_settings_are_operator_owned_minimal():
     cfg = (REPO / "etc" / "opencode" / "opencode.json").read_text()
     assert '"share": "disabled"' in cfg
     assert '"autoupdate": false' in cfg
+
+
+def test_profile_targets_v2_provider_schema():
+    """The operator profile targets the released OpenCode V2 (`@opencode/cli`), which uses the
+    plural `providers`/`plugins` and nested `mcp.servers`."""
+    import json
+
+    cfg = json.loads((REPO / "etc" / "opencode" / "profile.json").read_text())
+    assert "providers" in cfg and "provider" not in cfg
+    xc = cfg["providers"]["xc"]
+    assert xc["package"] == "@opencode/ai/providers/openai-compatible"
+    assert xc["settings"]["baseURL"] == "http://127.0.0.1:18080/v1"
+    assert xc["env"] == ["XCC_TOKEN"]
+    assert xc["models"]["auto"]["modelID"] == "xc/auto"
+    assert "plugins" in cfg
+    assert "servers" in cfg["mcp"]

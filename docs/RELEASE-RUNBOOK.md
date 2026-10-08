@@ -10,7 +10,7 @@ State today: `repos/xccode` @ `f7adfb8` (38 commits ahead of `origin/main`), las
 
 - `gh` CLI authenticated (`gh auth status`), or GitHub web UI.
 - The operator's signing key in `gpg` (currently EDDSA `42324EDAD…`, `xc0-marius <marius@xcloud.gg>`).
-- SSH access to thor (`xcloud@10.13.37.10`).
+- SSH access to thor (`xcloud@THOR`, the operator's recorded thor address).
 
 ## 1. Push the three repos
 
@@ -53,7 +53,7 @@ The TEI embedder ships as a prebuilt binary (built on thor, pinned by sha256 in 
 
 ```sh
 # from your workstation, pull the binary off thor
-scp xcloud@10.13.37.10:/opt/xcloud/xccode/tei/bin/text-embeddings-router /tmp/
+scp xcloud@THOR:/opt/xcloud/xccode/tei/bin/text-embeddings-router /tmp/
 sha256sum /tmp/text-embeddings-router   # must equal fbe70ee2567f1e61f9b4b977eeee146b2fc4f01a61977a7196ace6badeca566f
 
 # create a release named tei-v1.9.4 and upload text-embeddings-router as its asset

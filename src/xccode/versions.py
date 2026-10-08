@@ -13,7 +13,7 @@ from pathlib import Path
 
 # component -> the digest field that must also be non-empty ("" = version-only pin).
 COMPONENTS: dict[str, str] = {
-    "opencode": "sha256",           # release binary (glibc)
+    "opencode": "",                 # npm package @opencode/cli (integrity enforced by npm)
     "omniroute": "",                # pinned release, version only
     "openagentscontrol": "commit",  # pinned commit
     "gitleaks": "sha256",           # pinned release binary

@@ -3,8 +3,9 @@
 # be shipped, installed, or upgraded to. Never hand-edit the checksums; record them from the release.
 
 [opencode]
-version = "2.0.22"
-sha256 = "32cf5aa0a69a650e36277e3315d189835ddc79fb9aa1d0aef5025be5af5ad122"
+version = "2.0.26"
+# npm package @opencode/cli; integrity is enforced by npm (registry sha512 + trusted publisher),
+# so no hand-recorded sha256 is kept here. The pin is version-only.
 
 [omniroute]
 version = "23a11484862b3bb589a55e85b00e4ac53ffeb234"

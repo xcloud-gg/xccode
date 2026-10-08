@@ -1,8 +1,7 @@
 from xccode.versions import COMPONENTS, Pin, is_complete, load, validate
 
 DIGEST = "0" * 64
-DIGEST_FIELD = {"opencode": "sha256", "gitleaks": "sha256", "tei": "sha256",
-                "debian_image": "sha512"}
+DIGEST_FIELD = {"gitleaks": "sha256", "tei": "sha256", "debian_image": "sha512"}
 COMMIT_FIELD = {"openagentscontrol": "commit"}
 DIGEST_ONLY = {}
 
@@ -52,10 +51,10 @@ def test_empty_template_fails_validation(tmp_path):
 
 def test_missing_checksum_is_flagged(tmp_path):
     pins = _complete_pins()
-    pins["opencode"] = Pin("opencode", "1.0.0", "")
+    pins["gitleaks"] = Pin("gitleaks", "1.0.0", "")
     _write(tmp_path, pins)
     problems = validate(load(tmp_path / "versions.lock"))
-    assert any("opencode: no sha256" in p for p in problems)
+    assert any("gitleaks: no sha256" in p for p in problems)
 
 
 def test_missing_component_is_flagged():
