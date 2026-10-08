@@ -517,16 +517,36 @@ step_tokens() {
     chown root:xccode "$tokfile.tmp" 2>/dev/null || true
     chmod 0640 "$tokfile.tmp"
     mv "$tokfile.tmp" "$tokfile"
-    # serve.toml carries the digests only; pools/budget stay operator-configured (SOPS).
+    # serve.toml: token digests + the default pools. The pool `provider` is the combo name the
+    # operator creates in OmniRoute (fast / coding-fast / coding-strong / reasoning); the cost is a
+    # per-request budget estimate (OmniRoute reports the real cost at call time).
     {
-        echo "# xccode-default-config — tokens generated at install; pools/budget set by the operator (SOPS)."
+        echo "# xccode-default-config — tokens generated at install; pools match the OmniRoute combos."
         echo 'base_url = "http://127.0.0.1:18128"'
         echo "[tokens]"
         while IFS='=' read -r agent token; do
             printf '%s = "%s"\n' "$agent" "$(printf %s "$token" | sha256sum | cut -d' ' -f1)"
         done < "$tokfile"
         echo ""
-        echo "[pools]"
+        echo "[pools.fast]"
+        echo 'provider = "fast"'
+        echo 'est_cost_micro_usd = 10'
+        echo ""
+        echo "[pools.coding-fast]"
+        echo 'provider = "coding-fast"'
+        echo 'est_cost_micro_usd = 25'
+        echo ""
+        echo "[pools.coding-strong]"
+        echo 'provider = "coding-strong"'
+        echo 'est_cost_micro_usd = 60'
+        echo ""
+        echo "[pools.reasoning]"
+        echo 'provider = "reasoning"'
+        echo 'est_cost_micro_usd = 80'
+        echo ""
+        echo "[budget]"
+        echo 'per_request = 1000000'
+        echo 'per_day = 10000000'
     } > "$ETC/serve.toml"
     # Distribute the two raw tokens consumed by xccode's own services.
     hermes_token="$(sed -n 's/^hermes=//p' "$tokfile")"
