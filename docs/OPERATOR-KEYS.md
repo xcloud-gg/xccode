@@ -29,6 +29,7 @@ Keys you will paste into OmniRoute (one per provider you use), e.g.:
 | `ANTHROPIC_API_KEY` | `sk-ant-…` | `<fill in>` |
 | `GEMINI_API_KEY` | `AIza…` | `<fill in>` |
 | `DEEPSEEK_API_KEY` | `sk-…` | `<fill in>` |
+| `OLLAMA_API_KEY` | `ollama-…` | `<fill in>` (https://ollama.com/settings) |
 
 The combo model name is the only coupling to xccode: it must equal the pool's `provider` in §2.
 
