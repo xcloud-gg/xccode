@@ -1,0 +1,7 @@
+# xccode P3 advisor config (XC-CODE-001 §15.6). Operator-owned, SOPS-managed — never committed.
+# The advisor runs on the reserved Anthropic key, never on a coding pool and never through xcroute.
+# Copy to /etc/xcloud/xccode/advisor.toml and fill in the key.
+
+provider = "anthropic"
+model = "claude-opus-5-5"
+api_key = ""

@@ -288,6 +288,31 @@ def cmd_collect(args) -> int:
     return 0
 
 
+def cmd_advise(args) -> int:
+    """Run the P3 advisor against a plan and write the advisor record (for `xccode submit`)."""
+    import json
+
+    from .cloud_advisor import CloudAdvisor, load_config
+    from .hashing import plan_hash
+
+    plan = json.loads(Path(args.plan).read_text())
+    ph = plan_hash(plan)
+    origin = json.loads(Path(args.origin).read_text()) if args.origin else {}
+    advisor = CloudAdvisor(load_config(Path(args.config) if args.config else None))
+    try:
+        rec = advisor.review(plan, ph, origin)
+    except Exception as e:  # noqa: BLE001 — surfaced to the operator, nothing leaks
+        print(f"advisor failed: {e}", file=sys.stderr)
+        return 2
+    text = json.dumps(rec, indent=2) + "\n"
+    if args.out:
+        Path(args.out).write_text(text)
+        print(f"advisor record written to {args.out}")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -299,6 +324,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("plan")
     s.add_argument("--advisor-record", required=True)
     s.set_defaults(fn=cmd_submit)
+    v = sub.add_parser("advise", help="run the P3 advisor and write the advisor record (§15.6)")
+    v.add_argument("plan")
+    v.add_argument("--origin", help="JSON file with origin evidence (agent, hand-off ref)")
+    v.add_argument("--config", help="advisor.toml path (default /etc/xcloud/xccode/advisor.toml)")
+    v.add_argument("--out", help="write the record here instead of stdout")
+    v.set_defaults(fn=cmd_advise)
     r = sub.add_parser("run", help="execute a stored plan through the gate")
     r.add_argument("plan_hash")
     r.set_defaults(fn=cmd_run)

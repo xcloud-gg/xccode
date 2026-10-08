@@ -20,7 +20,7 @@ P1_PLAN = {
 def advisor_record(plan_h, **over):
     rec = {
         "plan_hash": plan_h,
-        "pool": "coding-strong",
+        "pool": "advisor",
         "origin": {"agent": "a", "ref": "handoff-1"},
         "legitimacy_pct": 82,
         "quality_score": 7,
@@ -109,7 +109,7 @@ def test_advisor_record_for_a_different_plan_does_not_count(env):
         env.run(h)
 
 
-def test_advisor_on_non_coding_strong_pool_is_invalid(env):
+def test_advisor_on_non_advisor_pool_is_invalid(env):
     h = env.plans.save(P3_PLAN)
     env.advisors.save(advisor_record(h, pool="reasoning"))
     with pytest.raises(GateRefused, match="invalid"):
