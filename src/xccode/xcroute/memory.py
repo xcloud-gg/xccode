@@ -65,6 +65,13 @@ class OpenVikingMemory:
         result = data.get("result")
         return result if isinstance(result, str) else ""
 
+    def write(self, uri: str, content: str, tags: list[str] | None = None) -> dict:
+        """Write (replace) one memory entry. Learner store only, never the read-only /ctx."""
+        body: dict = {"uri": uri, "content": content}
+        if tags:
+            body["tags"] = tags
+        return self._post("/api/v1/content/write", body)
+
     def search(self, query: str, max_chars: int = 1500) -> list[dict]:
         """Semantic recall over the memory; empty until the OpenViking embedder is configured."""
         data = self._post("/api/v1/search/recall", {"query": query, "max_chars": max_chars})

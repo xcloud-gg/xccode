@@ -313,6 +313,25 @@ def cmd_advise(args) -> int:
     return 0
 
 
+def cmd_store_learn(args) -> int:
+    """Write Hermes's proposals (JSON on stdin) to OpenViking + the review queue (§6.5)."""
+    from .learn_store import run
+    from .xcroute.memory import OpenVikingMemory
+
+    text = sys.stdin.read()
+    try:
+        memory = OpenVikingMemory(base_url=args.openviking_url)
+        summary = run(memory, args.repo, text, review_dir=Path(args.review_dir))
+    except Exception as e:  # noqa: BLE001
+        print(f"store-learn failed: {e}", file=sys.stderr)
+        return 2
+    print(
+        f"store-learn: {summary['facts']} facts, {summary['pitfalls']} pitfalls, "
+        f"{summary['preferences']} preferences, {summary['review']} queued for review"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="xccode")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -330,6 +349,13 @@ def main(argv: list[str] | None = None) -> int:
     v.add_argument("--config", help="advisor.toml path (default /etc/xcloud/xccode/advisor.toml)")
     v.add_argument("--out", help="write the record here instead of stdout")
     v.set_defaults(fn=cmd_advise)
+    sl = sub.add_parser(
+        "store-learn", help="write Hermes proposals (JSON on stdin) to memory (§6.5)"
+    )
+    sl.add_argument("repo")
+    sl.add_argument("--openviking-url", default="http://127.0.0.1:18180")
+    sl.add_argument("--review-dir", default="/var/lib/xcloud/xccode/learn/review")
+    sl.set_defaults(fn=cmd_store_learn)
     r = sub.add_parser("run", help="execute a stored plan through the gate")
     r.add_argument("plan_hash")
     r.set_defaults(fn=cmd_run)
