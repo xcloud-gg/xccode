@@ -30,6 +30,8 @@ Keys you will paste into OmniRoute (one per provider you use), e.g.:
 | `GEMINI_API_KEY` | `AIza…` | `<fill in>` |
 | `DEEPSEEK_API_KEY` | `sk-…` | `<fill in>` |
 | `OLLAMA_API_KEY` | `ollama-…` | `<fill in>` (https://ollama.com/settings) |
+| `OPENCODE_API_KEY` | — | `<fill in>` (OpenCode Zen, https://opencode.ai/zen — one key fronts deepseek/glm/qwen/grok/minimax) |
+| `KIMI_API_KEY` | `sk-…` | `<fill in>` (Moonshot Kimi, https://platform.moonshot.ai) |
 
 The combo model name is the only coupling to xccode: it must equal the pool's `provider` in §2.
 
