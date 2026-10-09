@@ -7,6 +7,7 @@
 # them from systemd-creds at start and they never touch this repository.
 #
 # Four pools, two providers deep, loopback only, own compression disabled (aiOS §8.6, D28).
+# The default routing table backs every pool with OpenCode Zen models instead of Ollama Cloud.
 
 [server]
 bind = "127.0.0.1"   # loopback only: xcroute reaches the API, marius the dashboard (§14)
@@ -30,3 +31,26 @@ providers = 2
 [[pools]]
 name = "fast"
 providers = 2
+
+# Default routing table — each pool maps to one OpenCode Zen model.
+# The operator still adds the opencode-zen provider and the OPENCODE_API_KEY in OmniRoute;
+# these lines only describe the intended model mapping, not credentials.
+[[routes]]
+pool = "fast"
+provider = "opencode-zen"
+model = "deepseek-v4-flash"
+
+[[routes]]
+pool = "coding-fast"
+provider = "opencode-zen"
+model = "gpt-5.6-sol"
+
+[[routes]]
+pool = "coding-strong"
+provider = "opencode-zen"
+model = "kimi-k3"
+
+[[routes]]
+pool = "reasoning"
+provider = "opencode-zen"
+model = "deepseek-v4-pro"

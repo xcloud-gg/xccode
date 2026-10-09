@@ -5,6 +5,12 @@ REPO = Path(__file__).resolve().parent.parent
 TEMPLATE = REPO / "etc" / "omniroute" / "omniroute.toml"
 
 POOL_NAMES = ["coding-strong", "coding-fast", "reasoning", "fast"]
+ROUTE_TABLE = {
+    "fast": ("opencode-zen", "deepseek-v4-flash"),
+    "coding-fast": ("opencode-zen", "gpt-5.6-sol"),
+    "coding-strong": ("opencode-zen", "kimi-k3"),
+    "reasoning": ("opencode-zen", "deepseek-v4-pro"),
+}
 
 
 def _load() -> dict:
@@ -29,6 +35,12 @@ def test_four_pools_two_providers_each():
 
 def test_own_compression_disabled():
     assert _load()["compression"]["enabled"] is False
+
+
+def test_default_routes_use_opencode_zen():
+    routes = _load()["routes"]
+    assert {r["pool"]: (r["provider"], r["model"]) for r in routes} == ROUTE_TABLE
+    assert all(r["provider"] == "opencode-zen" for r in routes)
 
 
 def test_template_carries_no_provider_credentials():

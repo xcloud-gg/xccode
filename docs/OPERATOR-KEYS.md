@@ -11,27 +11,25 @@ xccode does not hold provider keys — OmniRoute does. xcroute sends each reques
 `model: <pool>`, and OmniRoute routes that pool to the provider combo you configure.
 
 **Where:** OmniRoute dashboard at `http://127.0.0.1:18128` (from `marius`'s browser, via SSH tunnel
-or the thor desktop). Add one provider per upstream, then a combo whose **model name matches the
-xcroute pool name** in §2.
+or the thor desktop). The default routing table in `etc/omniroute/omniroute.toml` backs every pool
+with an OpenCode Zen model; add a second provider in OmniRoute if you want the configured two-provider
+failover.
 
-| Pool (xcroute) | What it must be (OmniRoute combo/model name) | Provider(s) you configure |
+| Pool (xcroute) | OmniRoute combo | OpenCode Zen model |
 |---|---|---|
-| `fast` | `fast` | a cheap/fast model |
-| `coding-fast` | `coding-fast` | a fast coding model |
-| `coding-strong` | `coding-strong` | a strong frontier coding model |
-| `reasoning` | `reasoning` | a reasoning model |
+| `fast` | `fast` | `deepseek-v4-flash` |
+| `coding-fast` | `coding-fast` | `gpt-5.6-sol` |
+| `coding-strong` | `coding-strong` | `kimi-k3` |
+| `reasoning` | `reasoning` | `deepseek-v4-pro` |
 
-Keys you will paste into OmniRoute (one per provider you use), e.g.:
+Keys you will paste into OmniRoute:
 
 | Field | Example shape | Value |
 |---|---|---|
-| `OPENAI_API_KEY` | `sk-proj-…` | `<fill in>` |
-| `ANTHROPIC_API_KEY` | `sk-ant-…` | `<fill in>` |
-| `GEMINI_API_KEY` | `AIza…` | `<fill in>` |
-| `DEEPSEEK_API_KEY` | `sk-…` | `<fill in>` |
-| `OLLAMA_API_KEY` | `ollama-…` | `<fill in>` (https://ollama.com/settings) |
-| `OPENCODE_API_KEY` | — | `<fill in>` (OpenCode Zen, https://opencode.ai/zen — one key fronts deepseek/glm/qwen/grok/minimax) |
-| `KIMI_API_KEY` | `sk-…` | `<fill in>` (Moonshot Kimi, https://platform.moonshot.ai) |
+| `OPENCODE_API_KEY` | — | `<fill in>` (OpenCode Zen, https://opencode.ai/zen — one key fronts all four models above) |
+| `ANTHROPIC_API_KEY` | `sk-ant-…` | `<fill in>` (reserved for the P3 advisor; never used by the pools) |
+
+No other provider keys are required for the default pools.
 
 The combo model name is the only coupling to xccode: it must equal the pool's `provider` in §2.
 
@@ -97,8 +95,9 @@ token from §2. The dense embedder is already xccode's own TEI — no key needed
 
 ## Summary of the values you must supply
 
-1. **OmniRoute provider API keys** (paste in dashboard) — at least one per pool above.
-2. **OmniRoute combos** named `fast` / `coding-fast` / `coding-strong` / `reasoning`.
-3. **Five xcroute tokens** (raw + sha256) — fill `serve.toml [tokens]`.
-4. **Pool cost estimates** — fill `serve.toml [pools.*] est_cost_micro_usd`.
-5. **OpenViking VLM `api_key`** — the `opencode` raw token, in `ov.conf`.
+1. **OpenCode Zen API key** (paste into the `opencode-zen` provider in OmniRoute) — backs all four pools.
+2. **Anthropic API key** (reserved for the P3 advisor) — never used by the pools.
+3. **OmniRoute combos** named `fast` / `coding-fast` / `coding-strong` / `reasoning`.
+4. **Five xcroute tokens** (raw + sha256) — filled by `install.sh`; you do not provide them.
+5. **Pool cost estimates** — fill `serve.toml [pools.*] est_cost_micro_usd`.
+6. **OpenViking VLM `api_key`** — the `opencode` raw token, filled by `install.sh` in `ov.conf`.

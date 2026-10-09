@@ -95,7 +95,7 @@ systemctl is-active xcroute omniroute openviking tei
   host as the tarball proves nothing.
 - `versions.lock` is already filled (all pins + the TEI sha256); `xccode.versions.validate` refuses
   an empty pin, so do not hand-edit checksums.
-- The four Ollama/OpenCode provider keys, the five xcroute tokens, and the advisor's Anthropic key
+- The OpenCode Zen provider key, the five xcroute tokens, and the advisor's Anthropic key
   are **not** in the repo — they are entered in OmniRoute / `serve.toml` / `advisor.toml` on thor
   (see `docs/OPERATOR-KEYS.md` + `docs/OPERATOR-KEYS.env`).
 - Choose the licence and commit `LICENSE` (still unset) before the repo is broadly public.
