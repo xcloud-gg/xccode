@@ -195,6 +195,12 @@ EOF
         "$OPT/skills/approved/karpathy-guidelines/SKILL.md" 0644
     copy_file "$(dirname "$0")/../etc/skills/karpathy-guidelines/EXAMPLES.md" \
         "$OPT/skills/approved/karpathy-guidelines/EXAMPLES.md" 0644
+    # Caveman output-compression skill (§4.14): terse output, technical payload kept verbatim.
+    # Approved starter skill, pinned commit in versions.lock [caveman]. The Caveman *Proxy* is not
+    # part of xccode — only the skill text is.
+    ensure_dir "$OPT/skills/approved/caveman" "root:root" 0755
+    copy_file "$(dirname "$0")/../etc/skills/caveman/SKILL.md" \
+        "$OPT/skills/approved/caveman/SKILL.md" 0644
     # The routing-bench suite the weekly timer scores every pool against (§4.13, §8). Root-owned;
     # the bench service (User=xccode) only reads it.
     ensure_dir "$ETC/bench" "root:root" 0755

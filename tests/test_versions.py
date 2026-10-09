@@ -2,7 +2,7 @@ from xccode.versions import COMPONENTS, Pin, is_complete, load, validate
 
 DIGEST = "0" * 64
 DIGEST_FIELD = {"gitleaks": "sha256", "tei": "sha256", "debian_image": "sha512"}
-COMMIT_FIELD = {"openagentscontrol": "commit"}
+COMMIT_FIELD = {"openagentscontrol": "commit", "caveman": "commit"}
 DIGEST_ONLY = {}
 
 

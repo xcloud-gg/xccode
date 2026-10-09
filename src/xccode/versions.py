@@ -16,6 +16,7 @@ COMPONENTS: dict[str, str] = {
     "opencode": "",                 # npm package @opencode/cli (integrity enforced by npm)
     "omniroute": "",                # pinned release, version only
     "openagentscontrol": "commit",  # pinned commit
+    "caveman": "commit",            # skill text pinned at a reviewed commit (§4.14)
     "gitleaks": "sha256",           # pinned release binary
     "hermes": "",
     "openviking": "",

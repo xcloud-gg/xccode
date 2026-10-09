@@ -14,6 +14,11 @@ version = "23a11484862b3bb589a55e85b00e4ac53ffeb234"
 version = "37ca233fa5597a5abb90cba73165deafffe0344f"
 commit = "37ca233fa5597a5abb90cba73165deafffe0344f"
 
+[caveman]
+# JuliusBrussee/caveman skill, reviewed commit (§4.14). Skill text only — the proxy is not adopted.
+version = "2.08"
+commit = "2e08b9177c07bb7249a8a2d1a6758e5db281d002"
+
 [gitleaks]
 version = "8.30.1"
 sha256 = "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
