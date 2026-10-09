@@ -43,13 +43,16 @@ _JOB_ID = re.compile(r"^[0-9]{8}T[0-9]{6}-[0-9a-f]{6}$")
 # must stay writable or git cannot commit the job branch at all), plain otherwise. Writes
 # stdout.jsonl (dsh --json events), rc, and the done marker. {dsh} and {repo_git} are rendered per
 # job. dsh's own HOME is a per-job dir so its session store never lands in the job branch diff.
+# After dsh exits, the runner commits whatever the job left in the worktree: dsh's inner
+# workspace-write sandbox covers only the worktree — the git worktree metadata lives in
+# <repo>/.git/worktrees/, outside that sandbox, so the agent itself cannot commit (proven on thor).
 RUNNER_TEMPLATE = """#!/bin/sh
 # xc job runner — generated per job by xccode.jobs.start; edits are lost.
 set -u
 cd "$(dirname "$0")"
 rc=0
 if command -v bwrap >/dev/null 2>&1; then
-    # Bind order matters: read-only root first, then the writable overlays on top of it.
+    # Bind order matters: the read-only root first, then the writable overlays on top of it.
     bwrap --ro-bind / / --dev-bind /dev /dev --proc /proc --tmpfs /tmp \\
         --bind "{repo_git}" "{repo_git}" \\
         --bind "$PWD/worktree" "$PWD/worktree" \\
@@ -57,9 +60,20 @@ if command -v bwrap >/dev/null 2>&1; then
         --setenv HOME "$PWD/dsh-home" --chdir "$PWD/worktree" \\
         -- {dsh} headless --patch "$PWD/job.cordis.yml" --json - \\
         < task.txt > stdout.jsonl 2> stderr.log || rc=$?
+    if [ -n "$(git -C worktree status --porcelain 2>/dev/null)" ]; then
+        bwrap --ro-bind / / --dev-bind /dev /dev --proc /proc --tmpfs /tmp \\
+            --bind "{repo_git}" "{repo_git}" \\
+            --bind "$PWD/worktree" "$PWD/worktree" \\
+            --bind "$PWD/dsh-home" "$PWD/dsh-home" \\
+            --setenv HOME "$PWD/dsh-home" --chdir "$PWD/worktree" \\
+            -- /bin/sh -c 'git add -A && git commit -m "xccode job output"' || true
+    fi
 else
     ( cd worktree && {dsh} headless --patch "$PWD/../job.cordis.yml" --json - < ../task.txt ) \\
         > stdout.jsonl 2> stderr.log || rc=$?
+    if [ -n "$(git -C worktree status --porcelain 2>/dev/null)" ]; then
+        ( cd worktree && git add -A && git commit -m "xccode job output" ) || true
+    fi
 fi
 echo "$rc" > rc
 touch done
