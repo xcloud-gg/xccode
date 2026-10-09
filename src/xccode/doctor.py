@@ -144,6 +144,20 @@ def run_checks(host: Host) -> list[Check]:
         )
     )
 
+    # §4.16 doctor deepening — the components the timers and the MCP jobs actually call.
+    for label, path, why in (
+        ("dsh-composition", f"{host.etc_dir}/dsh/job.cordis.yml", "§4.12/§7 job composition"),
+        ("tei-binary", f"{host.opt_dir}/tei/bin/text-embeddings-router", "§4.8 embedder"),
+        ("hermes-config", f"{host.state_dir}/.hermes/config.yaml", "§4.9 learner provider+xcroute"),
+    ):
+        present = path in host.existing
+        checks.append(Check(label, present, f"{why} {'present' if present else 'missing'}"))
+    if "marius" in host.passwd:
+        pw = "/home/marius/.config/xccode/serve.pass"
+        present = pw in host.existing
+        checks.append(Check("serve-password", present,
+                            f"{pw} {'present' if present else 'missing'} (§4.3 auth)"))
+
     return checks
 
 

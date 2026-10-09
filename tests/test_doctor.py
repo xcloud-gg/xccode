@@ -37,6 +37,10 @@ def host(**overrides) -> Host:
             "/etc/systemd/system/user@997.service.d/40-xccode-paths.conf",
             "/home/marius/.config/systemd/user/opencode-serve.service",
             "/usr/bin/bwrap",
+            f"{ETC}/dsh/job.cordis.yml",
+            f"{OPT}/tei/bin/text-embeddings-router",
+            f"{STATE}/.hermes/config.yaml",
+            "/home/marius/.config/xccode/serve.pass",
         }
     )
     return Host(passwd=passwd, gid_to_group=gid_to_group, members=members, existing=existing)

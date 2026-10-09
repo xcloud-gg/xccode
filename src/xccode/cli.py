@@ -207,6 +207,15 @@ def cmd_doctor(args) -> int:
         # §4.3: the operator's opencode serve user unit (opencode.nvim backend).
         candidates.append("/home/marius/.config/systemd/user/opencode-serve.service")
     candidates.append("/usr/bin/bwrap")  # §7: jobs refuse to start unconfined without it
+    # §4.16 doctor deepening: the dsh job composition, TEI binary, Hermes config, and the
+    # OpenCode pinned binary must all be present.
+    candidates += [
+        f"{etc}/dsh/job.cordis.yml",      # §4.12/§7: the background-job composition
+        f"{opt}/tei/bin/text-embeddings-router",  # §4.8
+        f"{state}/.hermes/config.yaml",   # §4.9: Hermes reads its config from ~/.hermes
+    ]
+    if "marius" in passwd:
+        candidates.append("/home/marius/.config/xccode/serve.pass")
     existing = frozenset(p for p in candidates if Path(p).exists())
     host = Host(
         passwd=passwd,
@@ -431,6 +440,32 @@ def main(argv: list[str] | None = None) -> int:
     )
     c.add_argument("--token", default="", help="operator token for /learn (or XCC_TOKEN)")
     c.set_defaults(fn=cmd_collect)
+    from . import ops
+    st = sub.add_parser("status", help="health of every service, timer and port (§4.16)")
+    st.set_defaults(fn=ops.cmd_status)
+    sc = sub.add_parser("secrets", help="store a key with systemd-creds (§4.16)")
+    sc.add_argument("action", choices=["set"])
+    sc.add_argument("name")
+    sc.set_defaults(fn=ops.cmd_secrets)
+    rv = sub.add_parser("review", help="approve/reject learned facts, rules, skill drafts (§6.6)")
+    rv.add_argument("item", nargs="?", default="", help="review-queue id to decide on")
+    rv.add_argument("action", nargs="?", choices=["approve", "reject"], default=None)
+    rv.set_defaults(fn=ops.cmd_review)
+    k = sub.add_parser("keep", help="save one redacted turn for labelling/replay (§4.16)")
+    k.add_argument("request_id")
+    k.set_defaults(fn=ops.cmd_keep)
+    rp = sub.add_parser("report", help="weekly routing/learning/spend summary (§8)")
+    rp.add_argument("--days", type=int, default=7)
+    rp.set_defaults(fn=ops.cmd_report)
+    up = sub.add_parser("upgrade", help="show pin diffs; apply only with --apply (§4.16, §11)")
+    up.add_argument("--apply", action="store_true")
+    up.add_argument("--pins", type=Path, default=None)
+    up.set_defaults(fn=ops.cmd_upgrade)
+    ex = sub.add_parser("export", help="export events/bench/learning as Parquet+schema (§8)")
+    ex.add_argument("--aios", action="store_true",
+                    help="emit aiOS §5.11 field names for direct import")
+    ex.add_argument("--out", default=str(Path("~/.local/share/xccode/export").expanduser()))
+    ex.set_defaults(fn=ops.cmd_export)
     args = ap.parse_args(argv)
     return args.fn(args)
 
