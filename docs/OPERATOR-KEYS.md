@@ -18,7 +18,7 @@ failover.
 | Pool (xcroute) | OmniRoute combo | OpenCode Zen model |
 |---|---|---|
 | `fast` | `fast` | `deepseek-v4-flash` |
-| `coding-fast` | `coding-fast` | `gpt-5.6-sol` |
+| `coding-fast` | `coding-fast` | `glm-5.2` |
 | `coding-strong` | `coding-strong` | `kimi-k3` |
 | `reasoning` | `reasoning` | `deepseek-v4-pro` |
 

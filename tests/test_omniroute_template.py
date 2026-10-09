@@ -7,7 +7,7 @@ TEMPLATE = REPO / "etc" / "omniroute" / "omniroute.toml"
 POOL_NAMES = ["coding-strong", "coding-fast", "reasoning", "fast"]
 ROUTE_TABLE = {
     "fast": ("opencode-zen", "deepseek-v4-flash"),
-    "coding-fast": ("opencode-zen", "gpt-5.6-sol"),
+    "coding-fast": ("opencode-zen", "glm-5.2"),
     "coding-strong": ("opencode-zen", "kimi-k3"),
     "reasoning": ("opencode-zen", "deepseek-v4-pro"),
 }
