@@ -213,5 +213,5 @@ def test_check_shows_opencode_serve_unit(tmp_path):
         "--operator", "marius", "--check",
         env={"XCCODE_ETC": str(tmp_path / "etc")},
     )
-    assert "would: write /etc/credstore/opencode-serve" in r.stdout
+    assert "would: write /home/marius/.config/credstore/opencode-serve" in r.stdout
     assert "would: install /home/marius/.config/systemd/user/opencode-serve.service" in r.stdout

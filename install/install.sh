@@ -575,20 +575,23 @@ step_serve() {
     else
         run "loginctl enable-linger $OPERATOR" loginctl enable-linger "$OPERATOR"
     fi
-    # Password credential: root-only in the SYSTEM credential store. User units do read system
-    # credstore entries for LoadCredentialEncrypted=; systemd decrypts them for the unit's
-    # ExecStart only. The file is 0600 root:root and is never in the repo.
-    cred="/etc/credstore/opencode-serve"
+    # Password credential: the operator's USER credential store, 0600 operator-only. User units
+    # read LoadCredential*= from ~user/.config/credstore — NOT the system /etc/credstore (the
+    # system store is for system units; a user unit fails 243/CREDENTIALS otherwise, found on
+    # thor). The file holds only this generated password; opencode.nvim's client auth reads it
+    # from here too.
+    cred="/home/$OPERATOR/.config/credstore/opencode-serve"
     if [ -f "$cred" ]; then
         echo "already: opencode serve credential"
     elif [ "$CHECK" = 1 ]; then
         echo "would: write $cred (generated serve password)"
     else
-        echo ">> write $cred (opencode serve password; read with sudo for opencode.nvim auth)"
-        mkdir -p /etc/credstore
-        openssl rand -hex 32 > "$cred"
-        chown root:root "$cred"
-        chmod 0600 "$cred"
+        echo ">> write $cred (opencode serve password; also the opencode.nvim client password)"
+        ensure_dir "$(dirname "$cred")" "$OPERATOR:$OPERATOR" 0700
+        openssl rand -hex 32 > "$cred.tmp"
+        chown "$OPERATOR:$OPERATOR" "$cred.tmp" 2>/dev/null || true
+        chmod 0600 "$cred.tmp"
+        mv "$cred.tmp" "$cred"
     fi
     # The marius USER unit — starts with the desktop session (default.target), like collect.
     udir="/home/$OPERATOR/.config/systemd/user"
