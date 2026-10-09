@@ -21,6 +21,24 @@ from .router import AUTO, Request, Result, Router
 
 _STATUS: dict[int, int] = {400: 400, 401: 401, 403: 403, 429: 429, 502: 502, 503: 503}
 
+# Which agents may open each door (advisor O6). ``/v1/chat/completions`` is open to every
+# authenticated agent; the side doors are not — in particular `dsh-job` (a semi-autonomous
+# background agent) may neither learn into memory (poisoning) nor read memory (`/ctx`), and may
+# only report telemetry to `/events` alongside hermes and dsh-bench per §4.4.
+DOOR_AGENTS: dict[str, set[str]] = {
+    "/ctx": {"opencode", "hermes", "openviking"},
+    "/learn": {"opencode"},
+    "/events": {"hermes", "dsh-bench", "dsh-job"},
+}
+
+
+def _forbidden_door(agent: str, door: str) -> JSONResponse | None:
+    if agent not in DOOR_AGENTS[door]:
+        return JSONResponse(
+            status_code=403, content={"error": {"message": f"not allowed: {door}", "type": "auth"}}
+        )
+    return None
+
 
 class Message(BaseModel):
     role: str
@@ -105,11 +123,12 @@ def _stream_chunks(model: str, r: Result):
 
     yield chunk({"role": "assistant", "content": r.text or None}, None)
     if r.tool_calls:
-        # One delta per tool call carries the full call (index + id + name + arguments), matching
-        # OpenAI's SSE shape; xcroute completes the call internally first, so there is nothing to
-        # stream incrementally — only the finished calls to forward (§7).
-        for tc in r.tool_calls:
-            yield chunk({"tool_calls": [{**tc, "index": tc.get("index", 0)}]}, None)
+        # One delta per tool call carries the full call, indexed by position (SSE joins deltas by
+        # index; parallel calls must keep distinct indexes or clients merge them into one — C6),
+        # then finish_reason=tool_calls. The call completes internally first, so there is nothing
+        # to stream incrementally — only the finished calls to forward (§7).
+        for i, tc in enumerate(r.tool_calls):
+            yield chunk({"tool_calls": [{**tc, "index": i}]}, None)
         yield chunk({}, "tool_calls")
     else:
         yield chunk({}, "stop")
@@ -131,7 +150,7 @@ def create_app(router: Router) -> FastAPI:
             Request(
                 token=token,
                 model=body.model,
-                messages=[m.model_dump() for m in body.messages],
+                messages=[m.model_dump(exclude_none=True) for m in body.messages],
                 session=session,
                 tools=body.tools,
                 tool_choice=body.tool_choice,
@@ -157,6 +176,9 @@ def create_app(router: Router) -> FastAPI:
         agent = router.auth.agent_for(_bearer(http.headers.get("authorization")))
         if agent is None:
             return _unauthorized()
+        denied = _forbidden_door(agent, "/ctx")
+        if denied is not None:
+            return denied
         if router.memory is None:
             return {"agent": agent, "items": []}
         if op == "search" and q:
@@ -173,6 +195,9 @@ def create_app(router: Router) -> FastAPI:
         agent = router.auth.agent_for(_bearer(http.headers.get("authorization")))
         if agent is None:
             return _unauthorized()
+        denied = _forbidden_door(agent, "/learn")
+        if denied is not None:
+            return denied
         queued, problems = router.learn(body)
         if problems:
             return JSONResponse(
@@ -186,6 +211,9 @@ def create_app(router: Router) -> FastAPI:
         agent = router.auth.agent_for(_bearer(http.headers.get("authorization")))
         if agent is None:
             return _unauthorized()
+        denied = _forbidden_door(agent, "/events")
+        if denied is not None:
+            return denied
         return {"events": router.events.all()}
 
     return app

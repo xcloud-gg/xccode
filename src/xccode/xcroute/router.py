@@ -20,7 +20,7 @@ from .decide import (
     rules_answers,
 )
 from .events import EventLog, RoutingEvent
-from .guard import redact_messages
+from .guard import redact_messages, redact_tools
 from .learn import intake
 from .markers import RepoPolicy, repo_policy
 from .memory import OpenVikingMemory
@@ -134,6 +134,10 @@ class Router:
             return done(403, "refused", "refused:secret-repo", detail="repository marked secret")
 
         messages, hits = redact_messages(req.messages)
+        # Tools are tool definitions (§7): definitions can embed secrets too, so they pass
+        # Guard-lite as well before the provider sees them (advisor O4).
+        tools, tool_hits = redact_tools(req.tools)
+        hits = hits + tuple(h for h in tool_hits if h not in hits)
         redacted_user = next((m["content"] for m in reversed(messages)
                               if m.get("role") == "user" and isinstance(m.get("content"), str)), "")
 
@@ -164,10 +168,10 @@ class Router:
 
         start = time.monotonic()
         try:
-            # Tools go through only when the caller sent them — the Provider protocol stays
-            # two-argument for simple integrations and tests.
-            if req.tools is not None:
-                comp = self.provider(pool, messages, tools=req.tools, tool_choice=req.tool_choice)
+            # Tools go through (redacted) only when the caller sent them — the Provider protocol
+            # stays two-argument for simple integrations and tests.
+            if tools is not None:
+                comp = self.provider(pool, messages, tools=tools, tool_choice=req.tool_choice)
             else:
                 comp = self.provider(pool, messages)
         except ProviderError as e:

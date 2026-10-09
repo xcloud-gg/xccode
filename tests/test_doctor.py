@@ -36,6 +36,7 @@ def host(**overrides) -> Host:
             "/etc/audit/rules.d/xccode.rules",
             "/etc/systemd/system/user@997.service.d/40-xccode-paths.conf",
             "/home/marius/.config/systemd/user/opencode-serve.service",
+            "/usr/bin/bwrap",
         }
     )
     return Host(passwd=passwd, gid_to_group=gid_to_group, members=members, existing=existing)

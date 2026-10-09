@@ -20,16 +20,20 @@ if [ ! -d "$PENDING" ] || [ -z "$(find "$PENDING" -type f -name '*.json' -print 
     exit 0
 fi
 
-# Aggregate the pending digests into a bounded prompt. verifier-lite (in xcroute's /learn) gates
-# every write Hermes proposes, so the learner never writes memory directly.
-digest="$(find "$PENDING" -type f -name '*.json' -print | sort | head -n 20 | xargs -r cat | head -c 8000)"
+# Aggregate up to 20 pending digests into a bounded prompt. This exact list (and ONLY this list)
+# is consumed on success below — a digest that arrives mid-run is left pending for next run and is
+# never discarded unlearned (advisor O13). verifier-lite (in xcroute's /learn) gates every write
+# Hermes proposes, so the learner never writes memory directly.
+files="$(find "$PENDING" -type f -name '*.json' -print | sort | head -n 20)"
+digest="$(printf '%s\n' "$files" | xargs -r cat | head -c 8000)"
 if [ -z "$digest" ]; then
     echo "xccode-learn: digest content empty, skipping"
     exit 0
 fi
 
-# The repo the digests belong to (each digest carries a `repo` field).
-first="$(find "$PENDING" -type f -name '*.json' -print | sort | head -1)"
+# The repo the digests belong to (each digest carries a `repo` field); "first" is the first of
+# the aggregated list, not a fresh find.
+first="$(printf '%s\n' "$files" | head -1)"
 repo="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("repo","default"))' "$first" 2>/dev/null || true)"
 [ -n "$repo" ] || repo="default"
 
@@ -39,9 +43,8 @@ echo "xccode-learn: running Hermes learner over $(printf '%s' "$digest" | wc -c)
 if printf '%s\n' "Review these finished-session digests and propose facts, preferences, pitfalls, and dated rules (no terminal/browser/web). Return ONLY a JSON object with exactly these keys: \"facts\" (list of {\"path\": str, \"content\": str}), \"preferences\" (list of {\"content\": str}), \"pitfalls\" (list of {\"path\": str, \"content\": str}), \"rules\" (list of {\"content\": str}), \"skills\" (list of {\"name\": str, \"content\": str}). No prose, no markdown fences. Digests: $digest" \
     | "$HERMES" chat -t memory,skills --oneshot --query-file - --quiet \
     | "$XCC" store-learn "$repo"; then
-    # Consume the digests this run aggregated: move them out of pending so the next run does not
-    # re-learn them. store-learn succeeded, so their content is already reflected in memory/review.
+    # Consume exactly the digests this run aggregated (captured above in $files), so the next run
+    # does not re-learn them and a digest can never be consumed unlearned.
     mkdir -p "$STATE/learn/processed"
-    find "$PENDING" -type f -name '*.json' | sort | head -n 20 \
-        | while IFS= read -r f; do mv "$f" "$STATE/learn/processed/"; done
+    printf '%s\n' "$files" | while IFS= read -r f; do [ -n "$f" ] && mv "$f" "$STATE/learn/processed/"; done
 fi

@@ -59,12 +59,18 @@ run() {  # run "<what>" <cmd...> — print in --check, otherwise execute
 
 ensure_dir() {  # ensure_dir <path> <owner> <mode> — idempotent mkdir + chown/chmod
     path="$1" owner="$2" mode="$3"
+    # A path that is a symlink is NOT a directory to manage: chown/chmod of its target could be
+    # used to escalate via a planted link (advisor O7). Refuse instead of following it.
+    if [ -L "$path" ]; then
+        echo "install.sh: refusing symlinked directory: $path" >&2
+        exit 1
+    fi
     if [ -d "$path" ]; then
         echo "already: dir $path"
     else
         run "mkdir -p $path" mkdir -p "$path"
     fi
-    [ "$CHECK" = 1 ] || chown "$owner" "$path"
+    [ "$CHECK" = 1 ] || chown -h "$owner" "$path"
     [ "$CHECK" = 1 ] || chmod "$mode" "$path"
 }
 
@@ -570,15 +576,6 @@ step_collect() {
 
 # --- 9b. opencode serve: the operator's opencode.nvim backend on 127.0.0.1:18090 (§4.3) --------
 step_serve() {
-    # Linger: the operator's user manager must persist beyond the login session — `opencode
-    # serve` is a user unit, and background dsh jobs (§7) run in the user scope and have to
-    # survive the session that started them. (Found missing on thor: Linger=no dead-ends
-    # `systemd-run --user` for anything but a live desktop login.)
-    if [ "$(loginctl show-user "$OPERATOR" -p Linger --value 2>/dev/null)" = "yes" ]; then
-        echo "already: linger for $OPERATOR"
-    else
-        run "loginctl enable-linger $OPERATOR" loginctl enable-linger "$OPERATOR"
-    fi
     # Password: a generated file, 0600 operator-only (~/.config/xccode/serve.pass). Systemd
     # LoadCredential* on user units needs key-backed machinery that is unreliable headless
     # (243/CREDENTIALS on thor); a private file read by the unit's ExecStart has the same
@@ -592,10 +589,11 @@ step_serve() {
     else
         echo ">> write $cred (opencode serve password; also the opencode.nvim client password)"
         ensure_dir "$(dirname "$cred")" "$OPERATOR:$OPERATOR" 0700
-        openssl rand -hex 32 > "$cred.tmp"
-        chown "$OPERATOR:$OPERATOR" "$cred.tmp" 2>/dev/null || true
-        chmod 0600 "$cred.tmp"
-        mv "$cred.tmp" "$cred"
+        # Written AS the operator (never root into an operator-owned dir): a pre-planted symlink
+        # at $cred.tmp must never be followed or chowned by root (advisor C5).
+        runuser -u "$OPERATOR" -- sh -c 'umask 077; f=$(mktemp "$1.XXXXXX") \
+            && openssl rand -hex 32 > "$f" && mv -f "$f" "$1"' _ "$cred" \
+            || { echo "install.sh: could not write $cred" >&2; exit 1; }
     fi
     # The marius USER unit — starts with the desktop session (default.target), like collect.
     udir="/home/$OPERATOR/.config/systemd/user"
@@ -611,6 +609,16 @@ step_serve() {
     ln -sf ../opencode-serve.service "$wants/opencode-serve.service"
     chown -h "$OPERATOR:$OPERATOR" "$wants/opencode-serve.service" 2>/dev/null || true
     chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
+    # Linger LAST: the operator's user manager must persist beyond the login session — `opencode
+    # serve` is a user unit, and background dsh jobs (§7) run in user units that have to survive
+    # the session that started them. It comes after the unit + password exist, so a lingering
+    # user manager never starts the unit before its prerequisites (advisor O9). (Found missing
+    # on thor: Linger=no dead-ends `systemd-run --user` for anything but a live desktop login.)
+    if [ "$(loginctl show-user "$OPERATOR" -p Linger --value 2>/dev/null)" = "yes" ]; then
+        echo "already: linger for $OPERATOR"
+    else
+        run "loginctl enable-linger $OPERATOR" loginctl enable-linger "$OPERATOR"
+    fi
 }
 
 # --- 10. tokens: the five xcroute agent tokens (generated here, not operator-provided) -----
@@ -664,14 +672,17 @@ step_tokens() {
     openviking_token="$(sed -n 's/^openviking=//p' "$tokfile")"
     if [ -n "$hermes_token" ]; then
         ensure_dir "$STATE/.hermes" "xccode:xccode" 0700
-        cat > "$STATE/.hermes/config.yaml" <<EOF
+        # Written AS the xccode service account: root writing into a service-owned dir would
+        # follow a planted symlink (C5). The token never appears on an argv line visible to ps
+        # beyond this heredoc feed.
+        runuser -u xccode -- sh -c 'umask 077; f=$(mktemp "$1.XXXXXX") && cat > "$f" && mv -f "$f" "$1"' \
+            _ "$STATE/.hermes/config.yaml" <<EOF
 model:
   default: "xc/auto"
   provider: "custom"
   base_url: "http://127.0.0.1:18080/v1"
   api_key: "$hermes_token"
 EOF
-        chown xccode:xccode "$STATE/.hermes/config.yaml" 2>/dev/null || true
     fi
     if [ -n "$openviking_token" ]; then
         python3 - "$ETC/ov.conf" "$openviking_token" <<'PY'
@@ -700,10 +711,11 @@ step_xcc_env() {
     ensure_dir "$(dirname "$xcc_env")" "$OPERATOR:$OPERATOR" 0700
     opencode_tok="$(sed -n 's/^opencode=//p' "$tokfile")"
     dsh_tok="$(sed -n 's/^dsh-job=//p' "$tokfile")"
-    printf 'XCC_TOKEN=%s\nXCC_DSH_TOKEN=%s\n' "$opencode_tok" "$dsh_tok" > "$xcc_env.tmp"
-    chown "$OPERATOR:$OPERATOR" "$xcc_env.tmp" 2>/dev/null || true
-    chmod 0600 "$xcc_env.tmp"
-    mv "$xcc_env.tmp" "$xcc_env"
+    # Written AS the operator, never by root into an operator-owned dir (symlink-safe; C5).
+    runuser -u "$OPERATOR" -- sh -c 'umask 077; f=$(mktemp "$1.XXXXXX") \
+        && printf "XCC_TOKEN=%s\nXCC_DSH_TOKEN=%s\n" "$2" "$3" > "$f" && mv -f "$f" "$1"' \
+        _ "$xcc_env" "$opencode_tok" "$dsh_tok" \
+        || { echo "install.sh: could not write $xcc_env" >&2; exit 1; }
 }
 
 main() {

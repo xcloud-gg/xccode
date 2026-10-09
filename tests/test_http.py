@@ -75,14 +75,36 @@ def test_wrong_token_is_401(tmp_path):
     assert r.status_code == 401
 
 
-def test_events_door_returns_routing_log(tmp_path):
-    client = _client(tmp_path)
+def test_events_door_returns_routing_log_for_telemetry_agents(tmp_path):
+    token = "telemetry"
+    router = _router(tmp_path, token)
+    router.auth = TokenAuth({"opencode": digest("secret"), "dsh-job": digest(token)})
+    client = TestClient(create_app(router))
     assert _chat(client).status_code == 200
-    r = client.get("/events", headers={"Authorization": "Bearer secret"})
+    r = client.get("/events", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200
     events = r.json()["events"]
     assert len(events) == 1
     assert events[0]["agent"] == "opencode"
+
+
+def test_dsh_job_token_cannot_reach_ctx_or_learn(tmp_path):
+    """O6: the dsh-job token is scoped to /v1/chat/completions (and /events telemetry)."""
+    token = "jobkey"
+    router = _router(tmp_path, token)
+    router.auth = TokenAuth({"opencode": digest("secret"), "dsh-job": digest(token)})
+    client = TestClient(create_app(router))
+    bad = {"Authorization": f"Bearer {token}"}
+    assert client.get("/ctx?op=search&q=x", headers=bad).status_code == 403
+    assert client.post("/learn", json={}, headers=bad).status_code == 403
+    r = client.post(
+        "/v1/chat/completions",
+        json={"model": "xc/auto", "messages": [{"role": "user", "content": "hi"}]},
+        headers=bad,
+    )
+    assert r.status_code == 200
+    # and the operator token may NOT post telemetry
+    assert client.get("/events", headers={"Authorization": "Bearer secret"}).status_code == 403
 
 
 def test_ctx_door_requires_token(tmp_path):

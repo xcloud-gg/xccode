@@ -206,6 +206,7 @@ def cmd_doctor(args) -> int:
     if "marius" in passwd:
         # §4.3: the operator's opencode serve user unit (opencode.nvim backend).
         candidates.append("/home/marius/.config/systemd/user/opencode-serve.service")
+    candidates.append("/usr/bin/bwrap")  # §7: jobs refuse to start unconfined without it
     existing = frozenset(p for p in candidates if Path(p).exists())
     host = Host(
         passwd=passwd,
@@ -275,9 +276,22 @@ def cmd_bench(args) -> int:
     scores = bench(provider, prompts, pools)
     toml = scores_to_toml(scores)
     if args.apply:
+        # Degenerate runs must never change routing (advisor O12): a bench taken while OmniRoute
+        # or pools were down would zero every quality and silently flip pool choice. Refuse those.
+        missing = set(pools) - set(scores)
+        if missing:
+            print(f"bench: refusing --apply; pools without scores: {sorted(missing)}",
+                  file=sys.stderr)
+            return 1
+        if all(s.quality == 0 for s in scores.values()):
+            print("bench: refusing --apply; every pool scored 0 (provider outage?)",
+                  file=sys.stderr)
+            return 1
         out = STATE / "bench" / "scores.toml"
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(toml)
+        tmp = out.with_suffix(".tmp")
+        tmp.write_text(toml)
+        os.replace(tmp, out)  # atomic: ScoresFile never reads a half-written table
         print(f"bench: scores applied to {out}", file=sys.stderr)
     print(toml, end="")
     return 0

@@ -18,12 +18,19 @@ from xccode import jobs
 def _git_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / ".git").mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
     return repo
 
 
 def _spawn_ok(cmd, **kw):
     return subprocess.CompletedProcess(cmd, 0, "", "")
+
+
+@pytest.fixture(autouse=True)
+def _job_env(monkeypatch):
+    """jobs needs the dsh token in env and refuses to start without bwrap without the test flag."""
+    monkeypatch.setenv("XCC_DSH_TOKEN", "test-dsh-job-token")
+    monkeypatch.setenv("XCCODE_JOBS_UNSAFE_ALLOW", "1")
 
 
 def test_start_creates_worktree_branch_and_meta(tmp_path):
@@ -41,11 +48,17 @@ def test_start_creates_worktree_branch_and_meta(tmp_path):
     assert meta["state"] == "running"
     assert (d / "task.txt").read_text() == "run the tests"
     assert (d / "run.sh").exists() and (d / "run.sh").stat().st_mode & 0o111
-    # git worktree add is the first spawn call and uses the job branch
-    assert calls[0][:5] == ["git", "-C", str(repo), "worktree", "add"]
+    # git worktree add is the first spawn call and uses the job branch + safe flags (C4)
+    assert calls[0][:5] == ["git", "-C", str(repo), "-c", "core.fsmonitor=false"]
     assert "-b" in calls[0] and f"xc/job-{job_id}" in calls[0]
-    # the second call launches the scope (systemd-run on real hosts, absent in tests)
-    assert any("run.sh" in c for c in calls[1])
+    # the second call launches a transient user unit (not a blocking scope; C3) running run.sh
+    unit_call = calls[1]
+    assert "systemd-run" in unit_call[0] and "--scope" not in unit_call
+    assert "run.sh" in unit_call[-1]
+    # and the runner shell text contains NO interpolated per-job values (C2) — env only
+    runner_text = (d / "run.sh").read_text()
+    assert str(repo) not in runner_text and "{dsh}" not in runner_text
+    assert "$XCC_REPO" in runner_text and "$XCC_DSH" in runner_text
 
 
 def test_start_refuses_non_git_repo(tmp_path):
@@ -118,12 +131,37 @@ def test_collect_summarises_branch_diffstat_and_final_answer(tmp_path, monkeypat
     )
     (d / "rc").write_text("0\n")
     (d / "done").touch()
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda *a, **kw: subprocess.CompletedProcess(a[0], 0, " src/app.py | 4 ++--\n", ""),
-    )
+
+    seen: list[list[str]] = []
+
+    def fake_run(cmd, **kw):
+        seen.append(cmd)
+        out = " src/app.py | 4 ++--\n" if "diff" in cmd else ""
+        return subprocess.CompletedProcess(cmd, 0, out, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
     out = jobs.collect(job_id, jobs_dir)
     assert f"job {job_id}: done (exit 0)" in out
     assert f"branch: xc/job-{job_id}" in out
     assert "src/app.py | 4 ++--" in out and "(no committed changes)" not in out
     assert "renamed all the things" in out
+    # merge-base diff, hook/fsmonitor-safe (advisor C4/O14)
+    diff_cmd = next(c for c in seen if "diff" in c)
+    assert f"HEAD...xc/job-{job_id}" in diff_cmd
+    assert "core.hooksPath=/dev/null" in diff_cmd and "core.fsmonitor=false" in diff_cmd
+
+
+def test_start_refuses_injection_shaped_repo_paths(tmp_path):
+    bad = tmp_path / "x$(touch PWNED)y"
+    bad.mkdir()
+    subprocess.run(["git", "init", "-q", str(bad)], check=True)
+    with pytest.raises(ValueError, match="unsafe characters"):
+        jobs.start(str(bad), "t", jobs_dir=tmp_path / "jobs", spawn=_spawn_ok)
+    assert not (tmp_path / "PWNED").exists()
+
+
+def test_start_refuses_without_token(tmp_path, monkeypatch):
+    monkeypatch.delenv("XCC_DSH_TOKEN")
+    repo = _git_repo(tmp_path)
+    with pytest.raises(ValueError, match="XCC_DSH_TOKEN"):
+        jobs.start(str(repo), "t", jobs_dir=tmp_path / "jobs", spawn=_spawn_ok)

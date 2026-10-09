@@ -6,10 +6,11 @@ Description=xccode opencode serve (opencode.nvim backend, 127.0.0.1:18090)
 [Service]
 # Hardening per spec §4.3: bind loopback only, authenticate with a password, never --mdns
 # (which forces 0.0.0.0). The password is a generated 0600 operator-only file
-# (~/.config/xccode/serve.pass, written by install.sh step_serve): systemd's LoadCredential* on
-# user units needs key-backed machinery that is unreliable headless (243/CREDENTIALS on thor);
-# a private file read by ExecStart gives the same confidentiality without it.
-ExecStart=/bin/sh -ec 'OPENCODE_SERVER_PASSWORD="$(cat "$HOME/.config/xccode/serve.pass")" PATH="/home/marius/.local/bin:$PATH" exec xcc serve --hostname 127.0.0.1 --port 18090'
+# (~/.config/xccode/serve.pass, written by install.sh step_serve); the service REFUSES to start
+# when the file is missing or empty — an empty password would otherwise mean unauthenticated
+# access (advisor C1). systemd's LoadCredential* on user units needs key-backed machinery that
+# is unreliable headless (243/CREDENTIALS on thor), so the unit reads the file itself.
+ExecStart=/bin/sh -ec 'pw=$(cat "%h/.config/xccode/serve.pass") && [ -n "$pw" ] || { echo "opencode-serve: %h/.config/xccode/serve.pass missing or empty; refusing to start" >&2; exit 1; }; OPENCODE_SERVER_PASSWORD="$pw" PATH="%h/.local/bin:$PATH" exec xcc serve --hostname 127.0.0.1 --port 18090'
 Restart=on-failure
 NoNewPrivileges=true
 PrivateTmp=true

@@ -51,14 +51,23 @@ class OmniRouteProvider:
             data = resp.json()
         except (httpx.HTTPError, ValueError) as e:
             raise ProviderError(str(e)) from e
-        choice = data["choices"][0]
-        message = choice.get("message") or {}
-        tool_calls = message.get("tool_calls")
-        usage = data.get("usage", {})
-        return Completion(
-            text=message.get("content") or "",
-            tokens_in=int(usage.get("prompt_tokens", 0)),
-            tokens_out=int(usage.get("completion_tokens", 0)),
-            cost_micro_usd=int(usage.get("total_cost", 0)),
-            tool_calls=tuple(tool_calls) if tool_calls else None,
-        )
+        try:
+            choice = data["choices"][0]
+            message = choice.get("message") or {}
+            tool_calls = message.get("tool_calls")
+            if tool_calls is not None and not (
+                isinstance(tool_calls, list)
+                and all(isinstance(tc, dict) for tc in tool_calls)
+            ):
+                tool_calls = None
+            usage = data.get("usage", {})
+            return Completion(
+                text=message.get("content") or "",
+                tokens_in=int(usage.get("prompt_tokens", 0)),
+                tokens_out=int(usage.get("completion_tokens", 0)),
+                cost_micro_usd=int(usage.get("total_cost", 0)),
+                tool_calls=tuple(tool_calls) if tool_calls else None,
+            )
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError) as e:
+            # Malformed upstream payload: never leak the body upstream sent us (O3 review).
+            raise ProviderError("malformed provider response") from e

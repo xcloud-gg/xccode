@@ -132,6 +132,18 @@ def run_checks(host: Host) -> list[Check]:
             )
         )
 
+    # §7: background jobs run confined — without bubblewrap, jobs.py refuses to start them, and
+    # the runner has no unconfined fallback. Flag it when the host lacks it.
+    checks.append(
+        Check(
+            "jobs-bubblewrap",
+            "/usr/bin/bwrap" in host.existing,
+            "bwrap present (jobs stay confined)"
+            if "/usr/bin/bwrap" in host.existing
+            else "bwrap missing (background jobs would refuse to start)",
+        )
+    )
+
     return checks
 
 
