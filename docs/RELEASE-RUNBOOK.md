@@ -97,5 +97,5 @@ systemctl is-active xcroute omniroute openviking tei
   an empty pin, so do not hand-edit checksums.
 - The OpenCode Zen provider key, the five xcroute tokens, and the advisor's Anthropic key
   are **not** in the repo — they are entered in OmniRoute / `serve.toml` / `advisor.toml` on thor
-  (see `docs/OPERATOR-KEYS.md` + `docs/OPERATOR-KEYS.env`).
+  (see `docs/OPERATOR-KEYS.md` + `docs/OPERATOR-KEYS.env.example`).
 - Choose the licence and commit `LICENSE` (still unset) before the repo is broadly public.

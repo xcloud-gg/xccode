@@ -31,6 +31,11 @@ Keys you will paste into OmniRoute:
 
 No other provider keys are required for the default pools.
 
+**How to add the provider in OmniRoute:** create an OpenAI-compatible provider named `opencode-zen`,
+set the base URL to `https://opencode.ai/zen/v1`, and paste the `OPENCODE_API_KEY` above. Then create
+one combo per pool with the model IDs in the table (the combo name must equal the pool name used in
+`serve.toml`).
+
 The combo model name is the only coupling to xccode: it must equal the pool's `provider` in §2.
 
 ## 2. xcroute agent tokens + pools — `serve.toml`

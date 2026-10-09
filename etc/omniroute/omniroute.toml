@@ -6,8 +6,9 @@
 # credential lives here. The operator supplies them with `xccode secrets set`; OmniRoute decrypts
 # them from systemd-creds at start and they never touch this repository.
 #
-# Four pools, two providers deep, loopback only, own compression disabled (aiOS §8.6, D28).
-# The default routing table backs every pool with OpenCode Zen models instead of Ollama Cloud.
+# Four pools, loopback only, own compression disabled (aiOS §8.6, D28).
+# Each pool keeps room for a two-provider failover chain in OmniRoute, but only one default
+# route is pinned here; add the second provider in the OmniRoute dashboard if you want failover.
 
 [server]
 bind = "127.0.0.1"   # loopback only: xcroute reaches the API, marius the dashboard (§14)

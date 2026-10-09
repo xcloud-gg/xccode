@@ -39,7 +39,9 @@ def test_own_compression_disabled():
 
 def test_default_routes_use_opencode_zen():
     routes = _load()["routes"]
+    assert len(routes) == len(ROUTE_TABLE)
     assert {r["pool"]: (r["provider"], r["model"]) for r in routes} == ROUTE_TABLE
+    assert set(ROUTE_TABLE) == set(POOL_NAMES)
     assert all(r["provider"] == "opencode-zen" for r in routes)
 
 
