@@ -575,14 +575,14 @@ step_serve() {
     else
         run "loginctl enable-linger $OPERATOR" loginctl enable-linger "$OPERATOR"
     fi
-    # Password credential: the operator's USER credential store, 0600 operator-only. User units
-    # read LoadCredential*= from ~user/.config/credstore — NOT the system /etc/credstore (the
-    # system store is for system units; a user unit fails 243/CREDENTIALS otherwise, found on
-    # thor). The file holds only this generated password; opencode.nvim's client auth reads it
-    # from here too.
-    cred="/home/$OPERATOR/.config/credstore/opencode-serve"
+    # Password: a generated file, 0600 operator-only (~/.config/xccode/serve.pass). Systemd
+    # LoadCredential* on user units needs key-backed machinery that is unreliable headless
+    # (243/CREDENTIALS on thor); a private file read by the unit's ExecStart has the same
+    # confidentiality and is trivially auditable. The same file is the opencode.nvim client's
+    # basic-auth password source.
+    cred="/home/$OPERATOR/.config/xccode/serve.pass"
     if [ -f "$cred" ]; then
-        echo "already: opencode serve credential"
+        echo "already: opencode serve password"
     elif [ "$CHECK" = 1 ]; then
         echo "would: write $cred (generated serve password)"
     else
