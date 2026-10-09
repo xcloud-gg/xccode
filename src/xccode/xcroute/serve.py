@@ -38,6 +38,50 @@ class ServeConfig:
     state_dir: Path = Path("/var/lib/xcloud/xccode")
 
 
+def _parse_scores(data: dict) -> dict[str, PoolScore]:
+    """Read a ``[scores]`` table (serve.toml or the bench state file) into ``PoolScore`` rows."""
+    return {
+        name: PoolScore(
+            quality=float(meta["quality"]),
+            cost_norm=float(meta["cost_norm"]),
+            latency_norm=float(meta["latency_norm"]),
+        )
+        for name, meta in data.get("scores", {}).items()
+    }
+
+
+class ScoresFile:
+    """Pool scores re-read from ``state_dir/bench/scores.toml`` when it changes (XC-CODE-001 §8).
+
+    The weekly ``xccode bench --apply`` run (User=xccode) cannot reload xcroute.service, so the
+    router re-reads the state file instead: a cheap ``stat`` per ``get()`` picks up new scores
+    the moment the bench writes them. A missing or unreadable file falls back to the static
+    ``serve.toml`` ``[scores]``; a file that turns unreadable after a good read keeps the last
+    good scores.
+    """
+
+    def __init__(self, path: Path, fallback: dict[str, PoolScore]) -> None:
+        self._path = path
+        self._fallback = fallback
+        self._mtime_ns: int | None = None
+        self._scores: dict[str, PoolScore] | None = None
+
+    def get(self) -> dict[str, PoolScore]:
+        try:
+            mtime_ns = self._path.stat().st_mtime_ns
+        except OSError:
+            return self._fallback
+        if self._scores is not None and mtime_ns == self._mtime_ns:
+            return self._scores
+        try:
+            scores = _parse_scores(tomllib.loads(self._path.read_text()))
+        except (OSError, ValueError, KeyError, TypeError):  # TOMLDecodeError is a ValueError
+            return self._scores if self._scores is not None else self._fallback
+        self._mtime_ns = mtime_ns
+        self._scores = scores
+        return scores
+
+
 def load_config(path: Path) -> ServeConfig:
     data = tomllib.loads(path.read_text())
     pools = {
@@ -47,14 +91,7 @@ def load_config(path: Path) -> ServeConfig:
         )
         for name, meta in data.get("pools", {}).items()
     }
-    scores = {
-        name: PoolScore(
-            quality=float(meta["quality"]),
-            cost_norm=float(meta["cost_norm"]),
-            latency_norm=float(meta["latency_norm"]),
-        )
-        for name, meta in data.get("scores", {}).items()
-    }
+    scores = _parse_scores(data)
     b = data.get("budget", {})
     limits = Limits(
         per_request=int(b.get("per_request", 1_000_000)),
@@ -75,10 +112,12 @@ def load_config(path: Path) -> ServeConfig:
 
 
 def build_router(cfg: ServeConfig) -> Router:
+    scores_file = ScoresFile(cfg.state_dir / "bench" / "scores.toml", cfg.scores)
     return Router(
         auth=TokenAuth(cfg.tokens),
         pools=cfg.pools,
         scores=cfg.scores,
+        scores_live=scores_file.get,
         healthy=lambda: set(cfg.pools),
         budget=BudgetGate(cfg.limits, state_path=cfg.state_dir / "budget.json"),
         provider=OmniRouteProvider(base_url=cfg.base_url, api_key=cfg.api_key),

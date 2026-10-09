@@ -82,6 +82,9 @@ class Router:
     repo_overrides: dict[str, RepoPolicy] = field(default_factory=dict)
     pending_dir: Path = Path("/var/lib/xcloud/xccode/learn/pending")
     memory: OpenVikingMemory | None = None
+    # Live scores (§8): when set, consulted per request so a weekly `xccode bench --apply` run
+    # takes effect without reloading the service. None: the static `scores` dict is used.
+    scores_live: Callable[[], dict[str, PoolScore]] | None = None
     lam: float = 0.2
     mu: float = 0.1
     tracker: TurnTracker = field(default_factory=TurnTracker)
@@ -141,8 +144,9 @@ class Router:
         else:
             decider = "rules"
             mode = mode_from(answers)
+            scores = self.scores_live() if self.scores_live is not None else self.scores
             pool, why = pick_pool(
-                mode, answers, role, self.healthy(), self.scores, self.lam, self.mu)
+                mode, answers, role, self.healthy(), scores, self.lam, self.mu)
             if pool is None:
                 return done(503, decider, f"refused:{why}", mode=mode, hits=hits,
                             detail=why)

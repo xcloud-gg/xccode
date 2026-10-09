@@ -66,3 +66,52 @@ def test_run_refuses_p3_without_approval(paths, capsys):
     cli.main(["submit", str(plan_file), "--advisor-record", str(adv)])
     assert cli.main(["run", plan_hash(P3_PLAN)]) == 3
     assert "refused" in capsys.readouterr().err
+
+
+def _mock_omniroute(monkeypatch, text="pong"):
+    import httpx
+
+    from xccode.xcroute.provider import OmniRouteProvider
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": text}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+            },
+        )
+
+    def fake(base_url, api_key=""):
+        return OmniRouteProvider(
+            base_url, api_key, client=httpx.Client(transport=httpx.MockTransport(handler))
+        )
+
+    monkeypatch.setattr("xccode.xcroute.provider.OmniRouteProvider", fake)
+
+
+def _bench_args(paths):
+    cfg = paths / "serve.toml"
+    cfg.write_text(
+        "[pools]\n"
+        'fast = { provider = "openai", est_cost_micro_usd = 10 }\n'
+    )
+    suite = paths / "routing.toml"
+    suite.write_text('[[routing]]\nmode = "fast"\nprompt = "ping"\nexpect = "pong"\n')
+    return ["bench", "--suite", str(suite), "--config", str(cfg)]
+
+
+def test_bench_prints_scores_without_writing(paths, capsys, monkeypatch):
+    _mock_omniroute(monkeypatch)
+    assert cli.main(_bench_args(paths)) == 0
+    assert capsys.readouterr().out.startswith("[scores]\n")
+    assert not (paths / "state" / "bench" / "scores.toml").exists()
+
+
+def test_bench_apply_writes_state_scores_and_still_prints(paths, capsys, monkeypatch):
+    _mock_omniroute(monkeypatch)
+    assert cli.main([*_bench_args(paths), "--apply"]) == 0
+    assert capsys.readouterr().out.startswith("[scores]\n")
+    text = (paths / "state" / "bench" / "scores.toml").read_text()
+    assert text.startswith("[scores]\n")
+    assert 'fast = { quality = 1.000' in text

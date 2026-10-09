@@ -252,7 +252,11 @@ def cmd_oac(args) -> int:
 
 
 def cmd_bench(args) -> int:
-    """Run a routing suite against every pool and print the score table (§4.13)."""
+    """Run a routing suite against every pool and print the score table (§4.13).
+
+    With ``--apply`` the ``[scores]`` block is also written to ``$STATE/bench/scores.toml``,
+    which the router re-reads live — the weekly run needs no xcroute reload (§8).
+    """
     from .xcbench import bench, load_suite, scores_to_toml
     from .xcroute.provider import OmniRouteProvider
     from .xcroute.serve import load_config
@@ -266,7 +270,13 @@ def cmd_bench(args) -> int:
         return 1
     provider = OmniRouteProvider(base_url=args.base_url, api_key=args.api_key)
     scores = bench(provider, prompts, pools)
-    print(scores_to_toml(scores), end="")
+    toml = scores_to_toml(scores)
+    if args.apply:
+        out = STATE / "bench" / "scores.toml"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(toml)
+        print(f"bench: scores applied to {out}", file=sys.stderr)
+    print(toml, end="")
     return 0
 
 
@@ -387,6 +397,10 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--config", type=Path, help="serve.toml with [pools] (estimated cost)")
     b.add_argument("--base-url", default="http://127.0.0.1:18128")
     b.add_argument("--api-key", default="")
+    b.add_argument(
+        "--apply", action="store_true",
+        help="also write the scores to $STATE/bench/scores.toml for the router to pick up (§8)",
+    )
     b.set_defaults(fn=cmd_bench)
     c = sub.add_parser("collect", help="collect finished sessions into learning digests (§6.1)")
     c.add_argument(
