@@ -349,6 +349,10 @@ step_dsh() {
     # npm's shebang is `#!/usr/bin/env node` — put the pinned Node 24 first so the install
     # resolves node 24 (dsh needs ^22.19||>=24) and lands in the pinned prefix, not the system's.
     PATH="$OPT/node-v24.14.1-linux-x64/bin:$PATH" "$npm_bin" install -g "@deepseek-ai/dsh@$dsh_ver"
+    # The headless job composition (§7): telemetry off, model routed through xcroute with the
+    # dsh-job token. jobs.py copies this per job so a job dir stays valid across upgrades.
+    ensure_dir "$ETC/dsh" "root:root" 0755
+    copy_file "$(dirname "$0")/../etc/dsh/job.cordis.yml" "$ETC/dsh/job.cordis.yml"
 }
 
 # --- 4g. OpenViking: project memory server (native Python, loopback 18180) ---------
@@ -668,7 +672,8 @@ step_xcc_env() {
     echo ">> write xcc.env (XCC_TOKEN for xcc)"
     ensure_dir "$(dirname "$xcc_env")" "$OPERATOR:$OPERATOR" 0700
     opencode_tok="$(sed -n 's/^opencode=//p' "$tokfile")"
-    printf 'XCC_TOKEN=%s\n' "$opencode_tok" > "$xcc_env.tmp"
+    dsh_tok="$(sed -n 's/^dsh-job=//p' "$tokfile")"
+    printf 'XCC_TOKEN=%s\nXCC_DSH_TOKEN=%s\n' "$opencode_tok" "$dsh_tok" > "$xcc_env.tmp"
     chown "$OPERATOR:$OPERATOR" "$xcc_env.tmp" 2>/dev/null || true
     chmod 0600 "$xcc_env.tmp"
     mv "$xcc_env.tmp" "$xcc_env"

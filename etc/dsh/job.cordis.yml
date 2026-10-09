@@ -1,0 +1,22 @@
+# xccode job profile overlay for dsh (dsh --patch; XC-CODE-001 §4.12, §7).
+# Headless job agent: telemetry off (job sessions stay on the host), the model routed only
+# through xcroute with the dsh-job token (XCC_JOB_API_KEY in the scope environment — the token
+# itself is never written into the job dir or this file).
+- id: session-telemetry-otel
+  disabled: true
+- id: llm-pi-ai
+  config:
+    providers:
+      xcroute:
+        apiKeyEnv: XCC_JOB_API_KEY
+        displayName: xccode xcroute
+        api: openai-completions
+        baseURL: "http://127.0.0.1:18080/v1"
+        models:
+          - id: xc/auto
+        defaultContextWindow: 262144
+        defaultMaxTokens: 8192
+- id: agent-default-model
+  config:
+    provider: xcroute
+    model: xc/auto

@@ -14,10 +14,14 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
+from subprocess import CalledProcessError, run
 from typing import Any
 
 import httpx
+
+from . import jobs
 
 XCROUTE = os.environ.get("XCC_ROUTE", "http://127.0.0.1:18080")
 PROTOCOL_VERSION = "2024-11-05"
@@ -67,23 +71,39 @@ def ctx_read(path: str, tier: str = "L1") -> str:
     return _ctx_items("ctx_read", path, {"op": "read", "uri": path, "tier": tier})
 
 
-def _job(job_id: str) -> str:
-    return f"job {job_id!r}: dsh is not wired yet (M5)"
+def _job_state_query(unit: str) -> bool:
+    """True when the job's systemd scope is still active. Injected into jobs.status."""
+    r = run(["systemctl", "--user", "is-active", unit], capture_output=True, text=True)
+    return r.returncode == 0
 
 
 def job_start(repo: str, task: str) -> str:
     """Start an isolated background job (a dsh worktree session) for a long/parallel task."""
-    return f"job_start: dsh is not wired yet (M5); would run {task!r} in {repo!r}"
+    try:
+        job_id = jobs.start(repo, task)
+    except (ValueError, CalledProcessError) as e:
+        return f"job_start failed: {e}"
+    return f"job started: {job_id}\ncollect with job_status / job_collect when done"
 
 
 def job_status(job_id: str) -> str:
     """Report the state of a background job started with job_start."""
-    return _job(job_id)
+    try:
+        s = jobs.status(job_id, query=_job_state_query if shutil.which("systemctl") else None)
+    except ValueError as e:
+        return str(e)
+    out = f"job {s['job_id']}: {s['state']}"
+    if s.get("exit_code"):
+        out += f" (exit {s['exit_code']})"
+    return out + f"\nbranch: {s['branch']}\nworktree: {s['worktree']}"
 
 
 def job_collect(job_id: str) -> str:
     """Collect the summary, diff stat and test result of a finished background job."""
-    return _job(job_id)
+    try:
+        return jobs.collect(job_id)
+    except ValueError as e:
+        return str(e)
 
 
 TOOLS: list[dict[str, Any]] = [

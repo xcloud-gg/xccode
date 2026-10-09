@@ -37,10 +37,10 @@ def test_notification_has_no_response():
     assert xcmcp.handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
 
 
-def test_tool_call_job_status_is_honest_stub():
+def test_tool_call_job_status_rejects_bad_ids_cleanly():
     r = _call("tools/call", {"name": "job_status", "arguments": {"job_id": "abc"}})
     assert r["result"]["isError"] is False
-    assert "dsh is not wired" in r["result"]["content"][0]["text"]
+    assert "bad job id" in r["result"]["content"][0]["text"]
 
 
 def test_tool_call_unknown_is_error():
