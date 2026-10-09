@@ -12,6 +12,7 @@
         displayName: xccode xcroute
         api: openai-completions
         baseURL: "http://127.0.0.1:18080/v1"
+        transport: sse  # force the streaming adapter: tools are only attached on that path
         models:
           - id: xc/auto
         defaultContextWindow: 262144

@@ -298,3 +298,31 @@ def test_tool_results_round_trip_in_messages(tmp_path):
     assert r.status_code == 200
     assert any(m.get("role") == "tool" and m.get("tool_call_id") == "call_1"
                for m in captured)
+
+
+def test_streaming_forwards_tool_calls_as_deltas(tmp_path):
+    """OpenCode/dsh stream (SSE): a tool_calls reply must emerge as tool_call deltas and
+    finish_reason=tool_calls, not a bare content+stop (§7)."""
+    def provider(pool, messages, tools=None, tool_choice=None):
+        return Completion(
+            text="", tokens_in=1, tokens_out=2, cost_micro_usd=100,
+            tool_calls=({"id": "call_9", "type": "function",
+                         "function": {"name": "bash_exec", "arguments": "{\"cmd\":\"ls\"}"}},),
+        )
+
+    client = TestClient(create_app(_router(tmp_path, provider=provider)))
+    with client.stream(
+        "POST", "/v1/chat/completions",
+        json={"model": "xc/auto",
+              "messages": [{"role": "user", "content": "ls"}],
+              "tools": [TOOL], "stream": True},
+        headers={"Authorization": "Bearer secret"},
+    ) as r:
+        frames = [ln[6:] for ln in r.iter_lines() if ln.startswith("data: {")]
+    parsed = [json.loads(f) for f in frames]
+    deltas = [p["choices"][0]["delta"] for p in parsed]
+    finishes = [p["choices"][0]["finish_reason"] for p in parsed]
+    assert any(d.get("tool_calls") for d in deltas)
+    assert finishes[-1] == "tool_calls"
+    call = next(d["tool_calls"][0] for d in deltas if d.get("tool_calls"))
+    assert call["function"]["name"] == "bash_exec"

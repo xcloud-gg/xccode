@@ -103,8 +103,16 @@ def _stream_chunks(model: str, r: Result):
             {**base, "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}]}
         ) + "\n\n"
 
-    yield chunk({"role": "assistant", "content": r.text}, None)
-    yield chunk({}, "stop")
+    yield chunk({"role": "assistant", "content": r.text or None}, None)
+    if r.tool_calls:
+        # One delta per tool call carries the full call (index + id + name + arguments), matching
+        # OpenAI's SSE shape; xcroute completes the call internally first, so there is nothing to
+        # stream incrementally — only the finished calls to forward (§7).
+        for tc in r.tool_calls:
+            yield chunk({"tool_calls": [{**tc, "index": tc.get("index", 0)}]}, None)
+        yield chunk({}, "tool_calls")
+    else:
+        yield chunk({}, "stop")
     yield "data: [DONE]\n\n"
 
 
