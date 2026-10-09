@@ -189,15 +189,20 @@ def start(
         sysd = shutil.which("systemd-run")
         if sysd:
             setenv = [e for kv in env_pairs.items() for e in ("--setenv", "=".join(kv))]
-            # A transient user SERVICE (not --scope): returns at once, starts with ONLY the
-            # listed environment (no caller-env leak), output goes to the journal — the MCP
-            # stdio channel stays clean (advisor C3).
+            # A transient user SERVICE (not --scope): returns at once, and the job starts with
+            # ONLY the listed environment (no caller-env leak — the leak class from C3). The
+            # systemd-run PROCESS itself still needs the caller's user-manager address.
+            caller_env = {
+                "PATH": os.environ.get("PATH", "/usr/bin"),
+                **{k: os.environ[k] for k in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS")
+                   if k in os.environ},
+            }
             spawn(
                 [sysd, "--user", "--quiet", "--collect", "--unit", f"xc-job-{job_id}",
                  "-p", "MemoryMax=2G", "-p", "CPUWeight=30",
                  *setenv, str(runner)],
                 check=True, capture_output=True, text=True,
-                env={"PATH": os.environ.get("PATH", "/usr/bin")},
+                env=caller_env,
             )
         else:  # hosts without a user manager (test hosts): run detached with the same minimal env
             subprocess.Popen(
