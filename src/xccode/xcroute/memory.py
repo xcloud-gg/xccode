@@ -72,10 +72,16 @@ class OpenVikingMemory:
             body["tags"] = tags
         return self._post("/api/v1/content/write", body)
 
-    def search(self, query: str, max_chars: int = 1500) -> list[dict]:
-        """Semantic recall over the memory; empty until the OpenViking embedder is configured."""
-        data = self._post("/api/v1/search/recall", {"query": query, "max_chars": max_chars})
-        entries = data.get("result", {}).get("entries", [])
+    def search(self, query: str, limit: int = 10) -> list[dict]:
+        """Semantic search over the memory content tree (§4.11).
+
+        Uses ``/api/v1/search/search`` — the vector search over the memories tree that content
+        writes are embedded into. (``/api/v1/search/recall`` searches only the VLM-extracted
+        entities/events/preferences store, which the observer pipeline populates separately and
+        store-learn does not write to.) Each entry is ``{uri, abstract, score, tags, level}``.
+        """
+        data = self._post("/api/v1/search/search", {"query": query, "limit": limit})
+        entries = data.get("result", {}).get("memories", [])
         return entries if isinstance(entries, list) else []
 
     def brief(self, repo: str) -> list[dict]:

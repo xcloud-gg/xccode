@@ -412,10 +412,11 @@ step_hermes() {
     "$OPT/hermes/.venv/bin/pip" install --quiet -e "$OPT/hermes"
     ensure_dir "$STATE/hermes" "xccode:xccode" 0750
     # Hermes's model is xcroute (an OpenAI-compatible endpoint). The api_key (the `hermes` token
-    # from serve.toml) is operator-owned — left unset here; SOPS/deploy tooling fills it. The
-    # config lives in the xccode account's home (which is the state dir).
-    ensure_dir "$STATE/.config/hermes" "xccode:xccode" 0750
-    write_file "$STATE/.config/hermes/config.yaml" <<'EOF'
+    # from serve.toml) is operator-owned — left unset here; SOPS/deploy tooling fills it. Hermes
+    # reads its config from ~/.hermes/config.yaml, whose parent is the xccode account's home (the
+    # state dir). (Earlier drafts wrote ~/.config/hermes; Hermes has never read from there.)
+    ensure_dir "$STATE/.hermes" "xccode:xccode" 0700
+    write_file "$STATE/.hermes/config.yaml" <<'EOF'
 model:
   default: "xc/auto"
   provider: "custom"
@@ -454,12 +455,17 @@ step_services() {
         copy_file "$units/$unit" "$SYSTEMD/$unit"
     done
     if [ "$CHECK" = 1 ]; then
-        echo "would: systemctl daemon-reload + enable units"
+        echo "would: systemctl daemon-reload + enable/start timers"
         return 0
     fi
     systemctl daemon-reload
     for unit in xcroute.service omniroute.service openviking.service tei.service xccode-guard.path xccode-nft.service xccode-backup.timer xccode-bench.timer xccode-learn.timer; do
         systemctl enable "$unit" >/dev/null 2>&1 || true
+    done
+    # `enable` only wires boot-time start; an install on a running host must also start the
+    # timers now or collect/learn/bench stay dead until a reboot (found on thor 2026-10-09).
+    for timer in xccode-backup.timer xccode-bench.timer xccode-learn.timer; do
+        systemctl start "$timer" >/dev/null 2>&1 || true
     done
 }
 
@@ -529,6 +535,18 @@ step_collect() {
     copy_file "$(dirname "$0")/units/xccode-collect.service" "$udir/xccode-collect.service"
     copy_file "$(dirname "$0")/units/xccode-collect.timer" "$udir/xccode-collect.timer"
     chown "$OPERATOR:$OPERATOR" "$udir/xccode-collect.service" "$udir/xccode-collect.timer" 2>/dev/null || true
+    # "Enable" the timer the way `systemctl --user enable` does: a wants symlink under
+    # timers.target.wants. Doing it as install (root, no session bus) — not `systemctl --user` —
+    # means it picks up on the operator's next login without any manual step (found dead on thor).
+    if [ "$CHECK" = 1 ]; then
+        echo "would: link $udir/timers.target.wants/xccode-collect.timer"
+        return 0
+    fi
+    wants="$udir/timers.target.wants"
+    mkdir -p "$wants"
+    ln -sf ../xccode-collect.timer "$wants/xccode-collect.timer"
+    chown -h "$OPERATOR:$OPERATOR" "$wants/xccode-collect.timer" 2>/dev/null || true
+    chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
 }
 
 # --- 10. tokens: the five xcroute agent tokens (generated here, not operator-provided) -----
@@ -581,15 +599,15 @@ step_tokens() {
     hermes_token="$(sed -n 's/^hermes=//p' "$tokfile")"
     openviking_token="$(sed -n 's/^openviking=//p' "$tokfile")"
     if [ -n "$hermes_token" ]; then
-        ensure_dir "$STATE/.config/hermes" "xccode:xccode" 0750
-        cat > "$STATE/.config/hermes/config.yaml" <<EOF
+        ensure_dir "$STATE/.hermes" "xccode:xccode" 0700
+        cat > "$STATE/.hermes/config.yaml" <<EOF
 model:
   default: "xc/auto"
   provider: "custom"
   base_url: "http://127.0.0.1:18080/v1"
   api_key: "$hermes_token"
 EOF
-        chown xccode:xccode "$STATE/.config/hermes/config.yaml" 2>/dev/null || true
+        chown xccode:xccode "$STATE/.hermes/config.yaml" 2>/dev/null || true
     fi
     if [ -n "$openviking_token" ]; then
         python3 - "$ETC/ov.conf" "$openviking_token" <<'PY'

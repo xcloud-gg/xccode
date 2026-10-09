@@ -36,19 +36,24 @@ def test_read_returns_empty_when_result_is_not_a_string():
     assert mem.read("viking://x", "L2") == ""
 
 
-def test_search_returns_entries():
+def test_search_uses_the_memory_search_endpoint():
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/search/search"
         return httpx.Response(
-            200, json={"status": "ok", "result": {"entries": [{"a": 1}, {"b": 2}]}}
+            200,
+            json={
+                "status": "ok",
+                "result": {"memories": [{"uri": "viking://x/a"}, {"uri": "viking://x/b"}]},
+            },
         )
 
     mem, _ = _client(handler)
-    assert mem.search("q") == [{"a": 1}, {"b": 2}]
+    assert mem.search("q") == [{"uri": "viking://x/a"}, {"uri": "viking://x/b"}]
 
 
-def test_search_returns_empty_when_no_entries():
+def test_search_returns_empty_when_no_memories():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"status": "ok", "result": {"entries": []}})
+        return httpx.Response(200, json={"status": "ok", "result": {"memories": []}})
 
     mem, _ = _client(handler)
     assert mem.search("q") == []

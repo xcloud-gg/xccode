@@ -36,6 +36,12 @@ repo="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("rep
 echo "xccode-learn: running Hermes learner over $(printf '%s' "$digest" | wc -c) bytes (repo $repo)"
 # --query-file - reads the prompt from stdin, so the digest text is never shell-interpreted.
 # Hermes must return only a JSON object; its reply is piped to store-learn.
-printf '%s\n' "Review these finished-session digests and propose facts, preferences, pitfalls, and dated rules (no terminal/browser/web). Return ONLY a JSON object with exactly these keys: \"facts\" (list of {\"path\": str, \"content\": str}), \"preferences\" (list of {\"content\": str}), \"pitfalls\" (list of {\"path\": str, \"content\": str}), \"rules\" (list of {\"content\": str}), \"skills\" (list of {\"name\": str, \"content\": str}). No prose, no markdown fences. Digests: $digest" \
+if printf '%s\n' "Review these finished-session digests and propose facts, preferences, pitfalls, and dated rules (no terminal/browser/web). Return ONLY a JSON object with exactly these keys: \"facts\" (list of {\"path\": str, \"content\": str}), \"preferences\" (list of {\"content\": str}), \"pitfalls\" (list of {\"path\": str, \"content\": str}), \"rules\" (list of {\"content\": str}), \"skills\" (list of {\"name\": str, \"content\": str}). No prose, no markdown fences. Digests: $digest" \
     | "$HERMES" chat -t memory,skills --oneshot --query-file - --quiet \
-    | "$XCC" store-learn "$repo"
+    | "$XCC" store-learn "$repo"; then
+    # Consume the digests this run aggregated: move them out of pending so the next run does not
+    # re-learn them. store-learn succeeded, so their content is already reflected in memory/review.
+    mkdir -p "$STATE/learn/processed"
+    find "$PENDING" -type f -name '*.json' | sort | head -n 20 \
+        | while IFS= read -r f; do mv "$f" "$STATE/learn/processed/"; done
+fi
