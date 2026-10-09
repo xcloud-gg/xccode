@@ -549,6 +549,39 @@ step_collect() {
     chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
 }
 
+# --- 9b. opencode serve: the operator's opencode.nvim backend on 127.0.0.1:18090 (§4.3) --------
+step_serve() {
+    # Password credential: root-only in the SYSTEM credential store. User units do read system
+    # credstore entries for LoadCredentialEncrypted=; systemd decrypts them for the unit's
+    # ExecStart only. The file is 0600 root:root and is never in the repo.
+    cred="/etc/credstore/opencode-serve"
+    if [ -f "$cred" ]; then
+        echo "already: opencode serve credential"
+    elif [ "$CHECK" = 1 ]; then
+        echo "would: write $cred (generated serve password)"
+    else
+        echo ">> write $cred (opencode serve password; read with sudo for opencode.nvim auth)"
+        mkdir -p /etc/credstore
+        openssl rand -hex 32 > "$cred"
+        chown root:root "$cred"
+        chmod 0600 "$cred"
+    fi
+    # The marius USER unit — starts with the desktop session (default.target), like collect.
+    udir="/home/$OPERATOR/.config/systemd/user"
+    ensure_dir "$udir" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/units/opencode-serve.service" "$udir/opencode-serve.service"
+    chown "$OPERATOR:$OPERATOR" "$udir/opencode-serve.service" 2>/dev/null || true
+    if [ "$CHECK" = 1 ]; then
+        echo "would: link $udir/default.target.wants/opencode-serve.service"
+        return 0
+    fi
+    wants="$udir/default.target.wants"
+    mkdir -p "$wants"
+    ln -sf ../opencode-serve.service "$wants/opencode-serve.service"
+    chown -h "$OPERATOR:$OPERATOR" "$wants/opencode-serve.service" 2>/dev/null || true
+    chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
+}
+
 # --- 10. tokens: the five xcroute agent tokens (generated here, not operator-provided) -----
 step_tokens() {
     tokfile="$ETC/tokens.env"
@@ -659,6 +692,7 @@ main() {
     step_services
     step_profile
     step_collect
+    step_serve
     step_tokens
     step_xcc_env
     step_guard

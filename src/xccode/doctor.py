@@ -119,6 +119,19 @@ def run_checks(host: Host) -> list[Check]:
     else:
         checks.append(Check("guard-dropin", True, "aiOS does not exist yet; no drop-in needed"))
 
+    # §4.3: the operator's opencode serve user unit (opencode.nvim backend, 127.0.0.1:18090).
+    # It is a marius user unit, so check his home — but only when marius exists on the host.
+    if "marius" in host.passwd:
+        serve = "/home/marius/.config/systemd/user/opencode-serve.service"
+        present = serve in host.existing
+        checks.append(
+            Check(
+                "opencode-serve-unit",
+                present,
+                f"{serve} {'present' if present else 'missing'}",
+            )
+        )
+
     return checks
 
 

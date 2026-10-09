@@ -35,6 +35,7 @@ def host(**overrides) -> Host:
             f"{ETC}/nft/xccode.nft",
             "/etc/audit/rules.d/xccode.rules",
             "/etc/systemd/system/user@997.service.d/40-xccode-paths.conf",
+            "/home/marius/.config/systemd/user/opencode-serve.service",
         }
     )
     return Host(passwd=passwd, gid_to_group=gid_to_group, members=members, existing=existing)
@@ -102,6 +103,13 @@ def test_groups_of_includes_primary_group():
     h = Host(passwd, gid_to_group, members, frozenset())
     assert "xccode" in groups_of(h, "xccode")  # primary group
     assert "xccode-users" in groups_of(h, "marius")  # supplementary
+
+
+def test_opencode_serve_unit_missing_is_red():
+    h = host()
+    existing = h.existing - {"/home/marius/.config/systemd/user/opencode-serve.service"}
+    checks = run_checks(Host(h.passwd, h.gid_to_group, h.members, existing))
+    assert names(checks)["opencode-serve-unit"] is False
 
 
 def test_render_summarises():

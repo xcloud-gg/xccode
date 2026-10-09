@@ -206,3 +206,12 @@ def test_check_shows_timers(tmp_path):
     )
     assert f"would: install {tmp_path / 'systemd' / 'xccode-bench.timer'}" in r.stdout
     assert f"would: install {tmp_path / 'systemd' / 'xccode-learn.timer'}" in r.stdout
+
+
+def test_check_shows_opencode_serve_unit(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_ETC": str(tmp_path / "etc")},
+    )
+    assert "would: write /etc/credstore/opencode-serve" in r.stdout
+    assert "would: install /home/marius/.config/systemd/user/opencode-serve.service" in r.stdout
