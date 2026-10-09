@@ -343,6 +343,12 @@ step_dsh() {
     dsh_ver=$(sed -n '/^\[dsh\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     npm_bin="$OPT/node-v24.14.1-linux-x64/bin/npm"
+    # The headless job composition (§7): telemetry off, model routed through xcroute with the
+    # dsh-job token. jobs.py copies this per job so a job dir stays valid across upgrades. Must
+    # land on every run — the early return below must not hide composition changes (thor found
+    # a stale copy that skipped telemetry/transports fixes).
+    ensure_dir "$ETC/dsh" "root:root" 0755
+    copy_file "$(dirname "$0")/../etc/dsh/job.cordis.yml" "$ETC/dsh/job.cordis.yml"
     if [ -z "$dsh_ver" ]; then echo "skip: no dsh pin"; return 0; fi
     if [ -x "$OPT/node-v24.14.1-linux-x64/bin/dsh" ]; then
         echo "already: dsh $dsh_ver"; return 0
@@ -352,10 +358,6 @@ step_dsh() {
     # npm's shebang is `#!/usr/bin/env node` — put the pinned Node 24 first so the install
     # resolves node 24 (dsh needs ^22.19||>=24) and lands in the pinned prefix, not the system's.
     PATH="$OPT/node-v24.14.1-linux-x64/bin:$PATH" "$npm_bin" install -g "@deepseek-ai/dsh@$dsh_ver"
-    # The headless job composition (§7): telemetry off, model routed through xcroute with the
-    # dsh-job token. jobs.py copies this per job so a job dir stays valid across upgrades.
-    ensure_dir "$ETC/dsh" "root:root" 0755
-    copy_file "$(dirname "$0")/../etc/dsh/job.cordis.yml" "$ETC/dsh/job.cordis.yml"
 }
 
 # --- 4g. OpenViking: project memory server (native Python, loopback 18180) ---------

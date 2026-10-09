@@ -49,7 +49,8 @@ set -u
 cd "$(dirname "$0")"
 rc=0
 if command -v bwrap >/dev/null 2>&1; then
-    bwrap --dev-bind /dev /dev --proc /proc --tmpfs /tmp --ro-bind / / \\
+    # Bind order matters: read-only root first, then the writable overlays on top of it.
+    bwrap --ro-bind / / --dev-bind /dev /dev --proc /proc --tmpfs /tmp \\
         --bind "{repo_git}" "{repo_git}" \\
         --bind "$PWD/worktree" "$PWD/worktree" \\
         --bind "$PWD/dsh-home" "$PWD/dsh-home" \\
