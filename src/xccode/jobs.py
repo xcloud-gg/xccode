@@ -62,6 +62,7 @@ rc=0
 
 bwrap --ro-bind / / --tmpfs "$HOME" --tmpfs /tmp \
     --ro-bind "$XCC_REPO" "$XCC_REPO" \
+    --ro-bind "$JOB_DIR/job.cordis.yml" "$JOB_DIR/job.cordis.yml" \
     --bind "$JOB_DIR/worktree" "$JOB_DIR/worktree" \
     --bind "$JOB_DIR/dsh-home" "$JOB_DIR/dsh-home" \
     --dev /dev --unshare-pid --proc /proc --unshare-ipc --new-session --die-with-parent \
