@@ -8,7 +8,7 @@ Description=xccode opencode serve (opencode.nvim backend, 127.0.0.1:18090)
 # (which forces 0.0.0.0). The password arrives as a user credential: user managers load ONLY from
 # the operator's own ~/.config/credstore (0600, written by install.sh step_serve), never the
 # system store and never the repo.
-LoadCredentialEncrypted=opencode-serve
+LoadCredential=opencode-serve
 ExecStart=/bin/sh -ec 'OPENCODE_SERVER_PASSWORD="$(cat "$CREDENTIALS_DIRECTORY/opencode-serve")" PATH="/home/marius/.local/bin:$PATH" exec xcc serve --hostname 127.0.0.1 --port 18090'
 Restart=on-failure
 NoNewPrivileges=true
