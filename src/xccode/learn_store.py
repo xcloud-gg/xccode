@@ -71,6 +71,31 @@ def store(
     return out
 
 
+def promote_rule(memory: OpenVikingMemory, review_file: Path) -> str:
+    """An operator-approved rule enters the dated rules/ tier (trust: operator). Returns the uri."""
+    body = json.loads(review_file.read_text())
+    content = str(body.get("content", ""))
+    uri = f"{memory.root}/rules/{_path_for(body, 'rule').lstrip('/')}"
+    memory.write(uri, content, tags=["trust:operator"])
+    return uri
+
+
+def promote_skill(review_file: Path, approved_dir: Path) -> Path:
+    """An operator-approved SKILL.md installs as a native OpenCode skill under skills/approved/."""
+    body = json.loads(review_file.read_text())
+    name = str(body.get("name", ""))
+    if not name or "/" in name or ".." in name:
+        raise ValueError(f"skill name must be a single path segment, got {name!r}")
+    target = approved_dir / name
+    target.mkdir(parents=True, exist_ok=True)
+    out = target / "SKILL.md"
+    # Never follow a planted symlink at the destination (advisor C2/O-fam).
+    if out.is_symlink():
+        raise SystemExit(f"store-learn: refusing symlinked skill destination {out}")
+    out.write_text(str(body.get("content", "")))
+    return out
+
+
 def run(memory: OpenVikingMemory, repo: str, text: str, review_dir: Path = REVIEW_DIR) -> dict:
     """Parse Hermes's reply and store it. Returns the summary dict."""
     return store(memory, repo, parse_proposals(text), review_dir)

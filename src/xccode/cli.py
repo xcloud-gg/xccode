@@ -350,9 +350,24 @@ def cmd_advise(args) -> int:
 
 
 def cmd_store_learn(args) -> int:
-    """Write Hermes's proposals (JSON on stdin) to OpenViking + the review queue (§6.5)."""
-    from .learn_store import run
+    """Write Hermes's proposals (JSON on stdin) to OpenViking + the review queue (§6.5),
+    or promote an operator-approved item (--promote-rule / --promote-skill)."""
+    from .learn_store import promote_rule, promote_skill, run
     from .xcroute.memory import OpenVikingMemory
+
+    if args.promote_rule or args.promote_skill:
+        f = args.promote_rule or args.promote_skill
+        try:
+            if args.promote_rule:
+                uri = promote_rule(OpenVikingMemory(base_url=args.openviking_url), f)
+                print(f"store-learn: promoted rule → {uri}")
+            else:
+                out = promote_skill(f, args.approved_dir)
+                print(f"store-learn: installed skill → {out}")
+        except Exception as e:  # noqa: BLE001
+            print(f"store-learn: promote failed: {e}", file=sys.stderr)
+            return 2
+        return 0
 
     text = sys.stdin.read()
     try:
@@ -391,6 +406,12 @@ def main(argv: list[str] | None = None) -> int:
     sl.add_argument("repo")
     sl.add_argument("--openviking-url", default="http://127.0.0.1:18180")
     sl.add_argument("--review-dir", default="/var/lib/xcloud/xccode/learn/review")
+    sl.add_argument("--promote-rule", type=Path, default=None,
+                    help="promote an approved rule into OpenViking rules/ (used by xccode-learn)")
+    sl.add_argument("--promote-skill", type=Path, default=None,
+                    help="install an approved skill into skills/approved/ (used by xccode-learn)")
+    sl.add_argument("--approved-dir", type=Path,
+                    default=Path("/opt/xcloud/xccode/skills/approved"))
     sl.set_defaults(fn=cmd_store_learn)
     r = sub.add_parser("run", help="execute a stored plan through the gate")
     r.add_argument("plan_hash")
