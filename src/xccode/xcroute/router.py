@@ -124,7 +124,8 @@ class Router:
                 message_hash=mh, guard_hits=tuple(hits), outcome=outcome,
                 tokens_in=comp.tokens_in if comp else 0, tokens_out=comp.tokens_out if comp else 0,
                 cost_micro_usd=cost if cost is not None else (comp.cost_micro_usd if comp else 0),
-                failover=comp.failover if comp else False, latency_ms=ms)
+                failover=comp.failover if comp else False, latency_ms=ms,
+                tool_count=len(req.tools) if req.tools else 0)
             self.events.write(ev)
             return Result(status, pool, text, ev, detail)
 

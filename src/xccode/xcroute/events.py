@@ -24,6 +24,7 @@ class RoutingEvent:
     latency_ms: int = 0
     failover: bool = False
     outcome: str = "ok"  # ok | refused:<reason> | error:<kind>
+    tool_count: int = 0  # OpenAI tools the caller sent (§7 dsh jobs / §8 routing data)
 
 
 class EventLog:
