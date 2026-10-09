@@ -2,7 +2,7 @@
 
 OpenAgentsControl (OAC) ships its agents as OpenCode-**v1** files — ``.opencode/agent/**/*.md`` with
 ``name``/``description``/``mode``/``temperature`` frontmatter and a markdown body. OpenCode **v2**
-defines agents in the config ``agent`` key, where the agent's system prompt is the ``prompt`` field.
+defines agents in the config ``agents`` key, the system prompt in the ``system`` field.
 This module converts the OAC core agents — the OpenCoder orchestration workflow and its validation
 and context subagents — into v2 config entries.
 
@@ -45,23 +45,17 @@ def agent_entry(md_path: Path, name: str, model: str = DEFAULT_MODEL) -> dict | 
     frontmatter, body = m.group(1), m.group(2).strip()
     entry: dict = {
         "model": model,
-        "prompt": body,
+        "system": body,
         "mode": _field(frontmatter, "mode") or "subagent",
     }
     description = _field(frontmatter, "description")
     if description:
         entry["description"] = description
-    temperature = _field(frontmatter, "temperature")
-    if temperature is not None:
-        try:
-            entry["temperature"] = float(temperature)
-        except ValueError:
-            pass
     return entry
 
 
 def agents_to_config(oac_dir: Path, model: str = DEFAULT_MODEL) -> dict[str, dict]:
-    """Convert the OAC core agents under ``oac_dir`` into a v2 ``agent`` config object."""
+    """Convert the OAC core agents under ``oac_dir`` into a v2 ``agents`` config object."""
     out: dict[str, dict] = {}
     for name, rel in CORE_AGENTS:
         md = oac_dir / rel

@@ -246,7 +246,7 @@ def cmd_oac(args) -> int:
     from .oac import agents_to_config
 
     base = json.loads(Path(args.profile).read_text())
-    base["agent"] = agents_to_config(Path(args.oac_dir))
+    base["agents"] = agents_to_config(Path(args.oac_dir))
     Path(args.out).write_text(json.dumps(base, indent=2) + "\n")
     return 0
 

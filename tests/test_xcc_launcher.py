@@ -121,3 +121,20 @@ def test_profile_targets_v2_provider_schema():
     assert xc["models"]["auto"]["modelID"] == "xc/auto"
     assert "plugins" in cfg
     assert "servers" in cfg["mcp"]
+
+
+def test_launcher_sources_xcc_env_token(tmp_path):
+    (tmp_path / ".config" / "xccode").mkdir(parents=True)
+    (tmp_path / ".config" / "xccode" / "xcc.env").write_text("XCC_TOKEN=secret-token\n")
+    fake = tmp_path / "opencode"
+    fake.write_text('#!/bin/sh\necho "$XCC_TOKEN" > "$OUT"\n')
+    fake.chmod(0o755)
+    out = tmp_path / "token.txt"
+    e = {
+        **os.environ,
+        "XCCODE_OPENCODE": str(fake),
+        "OUT": str(out),
+        "HOME": str(tmp_path),
+    }
+    subprocess.run(["sh", "install/xcc"], env=e, cwd=REPO, check=True)
+    assert out.read_text().strip() == "secret-token"

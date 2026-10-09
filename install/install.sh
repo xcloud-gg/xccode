@@ -602,6 +602,24 @@ PY
     fi
 }
 
+# --- 10b. operator's xcc token: hand the raw opencode token to marius (spec §4.1) ---
+# The `xcc` launcher sources ~/.config/xccode/xcc.env for XCC_TOKEN; xcroute's other consumers
+# (Hermes, OpenViking VLM, xccode-mcp) read their raw tokens directly from tokens.env as xccode.
+step_xcc_env() {
+    tokfile="$ETC/tokens.env"
+    xcc_env="/home/$OPERATOR/.config/xccode/xcc.env"
+    if [ ! -f "$tokfile" ]; then echo "skip: no tokens"; return 0; fi
+    if [ -f "$xcc_env" ]; then echo "already: xcc.env"; return 0; fi
+    if [ "$CHECK" = 1 ]; then echo "would: write $xcc_env (XCC_TOKEN)"; return 0; fi
+    echo ">> write xcc.env (XCC_TOKEN for xcc)"
+    ensure_dir "$(dirname "$xcc_env")" "$OPERATOR:$OPERATOR" 0700
+    opencode_tok="$(sed -n 's/^opencode=//p' "$tokfile")"
+    printf 'XCC_TOKEN=%s\n' "$opencode_tok" > "$xcc_env.tmp"
+    chown "$OPERATOR:$OPERATOR" "$xcc_env.tmp" 2>/dev/null || true
+    chmod 0600 "$xcc_env.tmp"
+    mv "$xcc_env.tmp" "$xcc_env"
+}
+
 main() {
     echo "install.sh --operator $OPERATOR${RELEASE:+ --release $RELEASE}${RESTORE:+ --restore $RESTORE}${CHECK:+ --check}"
     step_account
@@ -621,6 +639,7 @@ main() {
     step_profile
     step_collect
     step_tokens
+    step_xcc_env
     step_guard
     step_restore
     # Upcoming increments: full profile.

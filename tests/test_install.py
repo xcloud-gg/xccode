@@ -164,6 +164,15 @@ def test_check_shows_opencode_npm_install(tmp_path):
     assert "2.0.26" in r.stdout
 
 
+def test_check_wires_xcc_env_handoff(tmp_path):
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_ETC": str(tmp_path / "etc")},
+    )
+    # step_xcc_env follows step_tokens; with no tokens generated yet it reports "skip: no tokens".
+    assert "no tokens" in r.stdout
+
+
 def test_check_shows_timers(tmp_path):
     r = _run(
         "--operator", "marius", "--check",

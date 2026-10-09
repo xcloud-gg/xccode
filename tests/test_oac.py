@@ -25,9 +25,9 @@ def test_agent_entry_converts_frontmatter_and_body(tmp_path):
     entry = agent_entry(md, "OpenCoder")
     assert entry["mode"] == "primary"
     assert entry["description"] == "Orchestration agent"
-    assert entry["temperature"] == 0.1
+    assert "temperature" not in entry  # v2 drops the v1 temperature field
     assert entry["model"] == "xc/auto"
-    assert "ContextScout" in entry["prompt"]
+    assert "ContextScout" in entry["system"]
     assert "permission" not in entry  # v1 per-agent permission is dropped
 
 
@@ -55,7 +55,7 @@ def test_agents_to_config_collects_core_agents(tmp_path):
     }
     assert cfg["OpenCoder"]["mode"] == "primary"
     assert cfg["TestEngineer"]["mode"] == "subagent"
-    assert cfg["OpenCoder"]["prompt"] == "body-opencoder"
+    assert cfg["OpenCoder"]["system"] == "body-opencoder"
 
 
 def test_missing_agent_files_are_skipped(tmp_path):
