@@ -1,16 +1,11 @@
 # xccode job profile overlay for dsh (dsh --patch; XC-CODE-001 §4.12, §7).
 # Headless job agent: telemetry off (job sessions stay on the host), the model routed only
 # through xcroute with the dsh-job token (XCC_JOB_API_KEY in the scope environment — the token
-# itself is never written into the job dir or this file).
+# itself is never written into the job dir or this file). The job's own bubblewrap sandbox
+# (run.sh) confines dsh; dsh's in-sandbox backend runs nested bubblewrap, which needs the
+# read-only root mounted FIRST so /proc stays writable (run.sh order).
 - id: session-telemetry-otel
   disabled: true
-# Bash via the unsandboxed Local backend: jobs already run inside xccode's own bubblewrap
-# (run.sh) and nested bwrap is refused inside a read-only /proc userns, so dsh's sandbox
-# backend cannot initialise (proven on thor). The outer bwrap provides the real isolation.
-- id: bash-sandbox
-  disabled: true
-- id: bash-local
-  name: "@deepseek-ai/dsh-bash-local"
 - id: llm-pi-ai
   config:
     providers:
