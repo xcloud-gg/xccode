@@ -7,7 +7,7 @@ import json
 import sqlite3
 from pathlib import Path
 
-from xccode import ops
+from xccode import config, ops
 from xccode.versions import COMPONENTS, Pin
 
 # --- keep ---
@@ -190,9 +190,29 @@ def test_upgrade_apply_rejects_oversized_and_writable_candidates(tmp_path, monke
 
 def test_upgrade_apply_refuses_custom_etc_under_root(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(ops.os, "geteuid", lambda: 0)
-    monkeypatch.setenv("XCCODE_ETC", str(tmp_path / "etc"))
-    assert ops._require_root_for_upgrade() is False
-    assert "non-default XCCODE_ETC" in capsys.readouterr().err
+    for override in (str(tmp_path / "etc"), ".", "relative/path"):
+        monkeypatch.setenv("XCCODE_ETC", override)
+        assert ops._require_root_for_upgrade() is False
+        assert "non-default XCCODE_ETC" in capsys.readouterr().err
+
+
+def test_empty_path_overrides_match_installer_defaults(monkeypatch):
+    monkeypatch.setenv("XCCODE_ETC", "")
+    monkeypatch.setenv("XCCODE_STATE", "")
+    monkeypatch.setenv("XCCODE_OPT", "")
+    monkeypatch.setenv("XCCODE_CREDSTORE", "")
+    assert config.configured_path("XCCODE_ETC", ops.DEFAULT_ETC) == ops.DEFAULT_ETC
+    assert config.configured_path("XCCODE_STATE", "/var/lib/xcloud/xccode") == Path(
+        "/var/lib/xcloud/xccode"
+    )
+    assert config.configured_path("XCCODE_OPT", "/opt/xcloud/xccode") == Path(
+        "/opt/xcloud/xccode"
+    )
+    assert config.configured_path("XCCODE_CREDSTORE", "/etc/credstore.encrypted") == Path(
+        "/etc/credstore.encrypted"
+    )
+    monkeypatch.setattr(ops.os, "geteuid", lambda: 0)
+    assert ops._require_root_for_upgrade() is True
 
 
 def test_upgrade_apply_preserves_old_lock_when_atomic_replace_fails(
@@ -263,6 +283,23 @@ def test_cmd_export_drops_privilege_before_expanding_output_path(tmp_path, monke
 
     assert ops.cmd_export(Args()) == 0
     assert calls == ["drop", (True, home / "exports")]
+
+
+def test_cmd_export_empty_env_uses_state_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(ops, "STATE", tmp_path / "state")
+    monkeypatch.setenv("XCCODE_EXPORT_DIR", "")
+    monkeypatch.setattr(ops, "_drop_to_xccode", lambda: None)
+    seen = []
+    monkeypatch.setattr(
+        ops, "export", lambda *, aios, out_dir: seen.append((aios, out_dir)) or 0
+    )
+
+    class Args:
+        out = None
+        aios = False
+
+    assert ops.cmd_export(Args()) == 0
+    assert seen == [(False, tmp_path / "state" / "export")]
 
 
 # --- status / secrets surface ---

@@ -14,6 +14,7 @@ from pathlib import Path
 from .advisor import AdvisorRecordError, validate_record
 from .approver import Approver, ApproverError, check_tty_safe
 from .audit import AuditLog
+from .config import configured_path
 from .doctor import AUDIT_DIR, SYSTEMD_DIR, Host, gather_passwd_group, render, run_checks
 from .gate import GateRefused, execute_plan
 from .guardrails import apply, load_config, parse_passwd, plan
@@ -21,8 +22,8 @@ from .hashing import short
 from .store import AdvisorStore, ApprovalStore, PlanStore, StoreError
 from .tiers import classify, classify_plan
 
-ETC = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
-STATE = Path(os.environ.get("XCCODE_STATE", "/var/lib/xcloud/xccode"))
+ETC = configured_path("XCCODE_ETC", "/etc/xcloud/xccode")
+STATE = configured_path("XCCODE_STATE", "/var/lib/xcloud/xccode")
 
 
 def _approver() -> tuple[Approver, PlanStore, AdvisorStore, ApprovalStore, AuditLog]:
@@ -168,7 +169,7 @@ def cmd_approve(args) -> int:
 
 def cmd_guard(args) -> int:
     """Render and (unless --check) write guardrail layers 2, 3 and 4 for existing accounts."""
-    etc = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
+    etc = configured_path("XCCODE_ETC", "/etc/xcloud/xccode")
     cfg = load_config(args.config)
     accounts = parse_passwd(Path("/etc/passwd").read_text())
     writes = plan(cfg, accounts, etc)
@@ -189,9 +190,9 @@ def cmd_guard(args) -> int:
 
 def cmd_doctor(args) -> int:
     """Read-only check of the installation invariants; the fresh-host acceptance gate (B-50)."""
-    etc = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
-    state = Path(os.environ.get("XCCODE_STATE", "/var/lib/xcloud/xccode"))
-    opt = Path("/opt/xcloud/xccode")
+    etc = configured_path("XCCODE_ETC", "/etc/xcloud/xccode")
+    state = configured_path("XCCODE_STATE", "/var/lib/xcloud/xccode")
+    opt = configured_path("XCCODE_OPT", "/opt/xcloud/xccode")
     passwd, gid_to_group, members = gather_passwd_group(
         Path("/etc/passwd").read_text(), Path("/etc/group").read_text()
     )

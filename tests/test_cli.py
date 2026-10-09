@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -31,6 +32,17 @@ def test_review_cli_takes_action_before_item(monkeypatch):
     assert seen == [("approve", "abc123")]
     with pytest.raises(SystemExit):
         cli.main(["review", "abc123", "approve"])
+
+
+def test_cli_empty_path_overrides_use_installer_defaults(monkeypatch):
+    monkeypatch.setenv("XCCODE_ETC", "")
+    monkeypatch.setenv("XCCODE_STATE", "")
+    assert cli.configured_path("XCCODE_ETC", "/etc/xcloud/xccode") == Path(
+        "/etc/xcloud/xccode"
+    )
+    assert cli.configured_path("XCCODE_STATE", "/var/lib/xcloud/xccode") == Path(
+        "/var/lib/xcloud/xccode"
+    )
 
 
 def test_approve_without_a_terminal_is_refused_and_audited(paths, capsys):

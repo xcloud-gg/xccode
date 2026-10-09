@@ -19,14 +19,17 @@ import sys
 import time
 from pathlib import Path
 
+from .config import configured_path
 from .versions import COMPONENTS
 from .versions import load as load_pins
 from .versions import loads as parse_pins
 
 DEFAULT_ETC = Path("/etc/xcloud/xccode")
-ETC = Path(os.environ.get("XCCODE_ETC", str(DEFAULT_ETC)))
-STATE = Path(os.environ.get("XCCODE_STATE", "/var/lib/xcloud/xccode"))
-OPT = Path(os.environ.get("XCCODE_OPT", "/opt/xcloud/xccode"))
+
+
+ETC = configured_path("XCCODE_ETC", DEFAULT_ETC)
+STATE = configured_path("XCCODE_STATE", "/var/lib/xcloud/xccode")
+OPT = configured_path("XCCODE_OPT", "/opt/xcloud/xccode")
 
 SERVICES = ("xcroute", "omniroute", "openviking", "tei")
 SYSTEM_TIMERS = ("xccode-learn", "xccode-bench", "xccode-backup")
@@ -100,7 +103,7 @@ def cmd_status(args) -> int:
 
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ITEM_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-CREDSTORE = Path(os.environ.get("XCCODE_CREDSTORE", "/etc/credstore.encrypted"))
+CREDSTORE = configured_path("XCCODE_CREDSTORE", "/etc/credstore.encrypted")
 
 
 def _drop_to_xccode() -> None:
@@ -418,8 +421,7 @@ def _write_lock_atomic(path: Path, content: str) -> None:
 
 def _require_root_for_upgrade() -> bool:
     if os.geteuid() == 0:
-        override = os.environ.get("XCCODE_ETC")
-        if override and Path(override) != DEFAULT_ETC:
+        if configured_path("XCCODE_ETC", DEFAULT_ETC) != DEFAULT_ETC:
             print("upgrade: --apply refuses a non-default XCCODE_ETC; unset the override so the "
                   "installer and CLI use the same lock path", file=sys.stderr)
             return False
