@@ -35,7 +35,12 @@ class Pin:
 
 def load(path: Path) -> dict[str, Pin]:
     """Parse a versions.lock TOML file into component -> Pin."""
-    data = tomllib.loads(path.read_text())
+    return loads(path.read_text())
+
+
+def loads(text: str) -> dict[str, Pin]:
+    """Parse versions.lock TOML text into component -> Pin."""
+    data = tomllib.loads(text)
     pins: dict[str, Pin] = {}
     for name, meta in data.items():
         if not isinstance(meta, dict):

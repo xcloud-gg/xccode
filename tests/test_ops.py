@@ -124,6 +124,107 @@ def test_upgrade_shows_diff_and_only_writes_with_apply(tmp_path, capsys):
     assert "install.sh" in out
 
 
+def test_upgrade_apply_requires_root_before_reading_pins(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(ops.os, "geteuid", lambda: 1000)
+    missing = tmp_path / "does-not-exist.toml"
+    assert ops.upgrade(apply=True, pins_path=missing) == 2
+    assert "must run as root" in capsys.readouterr().err
+    assert not (tmp_path / "etc").exists()
+
+
+def test_upgrade_apply_writes_the_canonical_lock_atomically(tmp_path, monkeypatch, capsys):
+    candidate = tmp_path / "candidate.lock"
+    lines = []
+    for name, field in COMPONENTS.items():
+        lines.append(f"[{name}]\nversion = \"2.0.0\"\n")
+        if field:
+            lines.append(f'{field} = "{"y" * 64}"\n')
+    candidate.write_text("".join(lines))
+    candidate.chmod(0o644)
+    etc = tmp_path / "etc"
+    etc.mkdir()
+    etc.chmod(0o755)
+    monkeypatch.setattr(ops, "ETC", etc)
+    monkeypatch.setattr(ops, "INSTALLED_LOCK", tmp_path / "not-installed.lock")
+    monkeypatch.setattr(ops, "_require_root_for_upgrade", lambda: True)
+
+    assert ops.upgrade(apply=True, pins_path=candidate) == 0
+    target = etc / "versions.lock"
+    assert target.read_text() == candidate.read_text()
+    assert target.stat().st_mode & 0o777 == 0o644
+    assert not list(etc.glob(".*.tmp"))
+    assert "re-run install.sh" in capsys.readouterr().out
+
+
+def test_upgrade_apply_rejects_symlinked_pins(tmp_path, monkeypatch, capsys):
+    real = tmp_path / "real.lock"
+    real.write_text("[component]\nversion = \"1\"\n")
+    link = tmp_path / "link.lock"
+    link.symlink_to(real)
+    etc = tmp_path / "etc"
+    etc.mkdir()
+    monkeypatch.setattr(ops, "ETC", etc)
+    monkeypatch.setattr(ops, "_require_root_for_upgrade", lambda: True)
+    assert ops.upgrade(apply=True, pins_path=link) == 1
+    assert "cannot read pins" in capsys.readouterr().err
+    assert not (etc / "versions.lock").exists()
+
+
+def test_upgrade_apply_rejects_oversized_and_writable_candidates(tmp_path, monkeypatch, capsys):
+    etc = tmp_path / "etc"
+    etc.mkdir()
+    etc.chmod(0o755)
+    monkeypatch.setattr(ops, "ETC", etc)
+    monkeypatch.setattr(ops, "_require_root_for_upgrade", lambda: True)
+    candidate = tmp_path / "candidate.lock"
+    candidate.write_text("x" * 65537)
+    candidate.chmod(0o644)
+    assert ops.upgrade(apply=True, pins_path=candidate) == 1
+    assert "64 KiB" in capsys.readouterr().err
+
+    candidate.write_text("[opencode]\nversion = \"2.0.0\"\n")
+    candidate.chmod(0o664)
+    assert ops.upgrade(apply=True, pins_path=candidate) == 1
+    assert "group- or world-writable" in capsys.readouterr().err
+
+
+def test_upgrade_apply_refuses_custom_etc_under_root(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(ops.os, "geteuid", lambda: 0)
+    monkeypatch.setenv("XCCODE_ETC", str(tmp_path / "etc"))
+    assert ops._require_root_for_upgrade() is False
+    assert "non-default XCCODE_ETC" in capsys.readouterr().err
+
+
+def test_upgrade_apply_preserves_old_lock_when_atomic_replace_fails(
+    tmp_path, monkeypatch, capsys
+):
+    candidate = tmp_path / "candidate.lock"
+    lines = []
+    for name, field in COMPONENTS.items():
+        lines.append(f"[{name}]\nversion = \"2.0.0\"\n")
+        if field:
+            lines.append(f'{field} = "{"y" * 64}"\n')
+    candidate.write_text("".join(lines))
+    candidate.chmod(0o644)
+    etc = tmp_path / "etc"
+    etc.mkdir()
+    etc.chmod(0o755)
+    old = etc / "versions.lock"
+    old.write_text("previous lock\n")
+    monkeypatch.setattr(ops, "ETC", etc)
+    monkeypatch.setattr(ops, "INSTALLED_LOCK", tmp_path / "not-installed.lock")
+    monkeypatch.setattr(ops, "_require_root_for_upgrade", lambda: True)
+
+    def fail_replace(*args, **kwargs):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(ops.os, "replace", fail_replace)
+    assert ops.upgrade(apply=True, pins_path=candidate) == 1
+    assert old.read_text() == "previous lock\n"
+    assert not list(etc.glob(".*.tmp"))
+    assert "simulated replace failure" in capsys.readouterr().err
+
+
 # --- export ---
 
 
@@ -136,6 +237,32 @@ def test_export_without_pyarrow_falls_back_to_jsonl_and_schema(tmp_path, monkeyp
     schema = json.loads((out / "schema.json").read_text())
     assert schema["fallback"].startswith("jsonl")
     assert any(col["name"] == "xc_repo_class" for col in schema["columns"])
+
+
+def test_cmd_export_drops_privilege_before_expanding_output_path(tmp_path, monkeypatch):
+    calls = []
+    home = tmp_path / "xccode-home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(tmp_path / "root-home"))
+    monkeypatch.setenv("XCCODE_EXPORT_DIR", "~/exports")
+
+    def drop():
+        calls.append("drop")
+        monkeypatch.setenv("HOME", str(home))
+
+    def export(*, aios, out_dir):
+        calls.append((aios, out_dir))
+        return 0
+
+    monkeypatch.setattr(ops, "_drop_to_xccode", drop)
+    monkeypatch.setattr(ops, "export", export)
+
+    class Args:
+        out = None
+        aios = True
+
+    assert ops.cmd_export(Args()) == 0
+    assert calls == ["drop", (True, home / "exports")]
 
 
 # --- status / secrets surface ---

@@ -22,6 +22,17 @@ def test_classify_prints_tier(capsys):
     assert capsys.readouterr().out.startswith("P0")
 
 
+def test_review_cli_takes_action_before_item(monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        "xccode.ops.cmd_review", lambda args: seen.append((args.verb, args.item)) or 0
+    )
+    assert cli.main(["review", "approve", "abc123"]) == 0
+    assert seen == [("approve", "abc123")]
+    with pytest.raises(SystemExit):
+        cli.main(["review", "abc123", "approve"])
+
+
 def test_approve_without_a_terminal_is_refused_and_audited(paths, capsys):
     # pytest's stdin is not a tty, which is exactly the agent / background-process case (B-46)
     assert cli.main(["approve", "abcd1234"]) == 4

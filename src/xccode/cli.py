@@ -468,9 +468,9 @@ def main(argv: list[str] | None = None) -> int:
     sc.add_argument("action", choices=["set"])
     sc.add_argument("name")
     sc.set_defaults(fn=ops.cmd_secrets)
-    rv = sub.add_parser("review", help="approve/reject learned facts, rules, skill drafts (§6.6)")
-    rv.add_argument("item", nargs="?", default="", help="review-queue id to inspect/decide on")
-    rv.add_argument("action", nargs="?", choices=["show", "approve", "reject"], default=None)
+    rv = sub.add_parser("review", help="inspect/approve/reject learned items (§6.6)")
+    rv.add_argument("verb", nargs="?", choices=["show", "approve", "reject"], default=None)
+    rv.add_argument("item", nargs="?", default="", help="review-queue id")
     rv.set_defaults(fn=ops.cmd_review)
     k = sub.add_parser("keep", help="save one redacted turn for labelling/replay (§4.16)")
     k.add_argument("request_id")
@@ -485,7 +485,8 @@ def main(argv: list[str] | None = None) -> int:
     ex = sub.add_parser("export", help="export events/bench/learning as Parquet+schema (§8)")
     ex.add_argument("--aios", action="store_true",
                     help="emit aiOS §5.11 field names for direct import")
-    ex.add_argument("--out", default=str(Path("~/.local/share/xccode/export").expanduser()))
+    ex.add_argument("--out", default=None,
+                    help="export directory (default: $XCCODE_EXPORT_DIR or $STATE/export)")
     ex.set_defaults(fn=ops.cmd_export)
     args = ap.parse_args(argv)
     return args.fn(args)

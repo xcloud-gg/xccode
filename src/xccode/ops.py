@@ -10,8 +10,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
+import stat
 import subprocess
 import sys
 import time
@@ -19,8 +21,10 @@ from pathlib import Path
 
 from .versions import COMPONENTS
 from .versions import load as load_pins
+from .versions import loads as parse_pins
 
-ETC = Path(os.environ.get("XCCODE_ETC", "/etc/xcloud/xccode"))
+DEFAULT_ETC = Path("/etc/xcloud/xccode")
+ETC = Path(os.environ.get("XCCODE_ETC", str(DEFAULT_ETC)))
 STATE = Path(os.environ.get("XCCODE_STATE", "/var/lib/xcloud/xccode"))
 OPT = Path(os.environ.get("XCCODE_OPT", "/opt/xcloud/xccode"))
 
@@ -114,6 +118,7 @@ def _drop_to_xccode() -> None:
     os.setgroups([])
     os.setgid(pw.pw_gid)
     os.setuid(pw.pw_uid)
+    os.environ["HOME"] = pw.pw_dir
 
 
 def _safe_dest(path: Path) -> None:
@@ -285,7 +290,7 @@ def review_list(state_dir: Path = STATE) -> int:
         text = body.get("content", body.get("name", ""))
         print(f"{it.stem}  {kind:<5}  {_sanitize(text)[:80]}")
     print(f"review: {len(items)} item(s); inspect with `xccode review show <id>`, "
-          "decide with `xccode review decide <id> approve|reject`")
+          "decide with `xccode review approve|reject <id>`")
     return 0
 
 
@@ -334,16 +339,119 @@ def review_decide(item_id: str, approve: bool, state_dir: Path = STATE) -> int:
 
 INSTALLED_LOCK = OPT / "versions.installed.lock"
 
-# Pin-source precedence: the operator's $ETC/versions.lock (set by `xccode upgrade --apply`) wins;
-# the release's bundled lock is the fallback. install.sh uses this same order.
+
+def _read_apply_pins(path: Path) -> tuple[dict, str]:
+    """Read an apply candidate without following links or trusting a writable lock file."""
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("pins must be a regular file")
+        if info.st_size > 65536:
+            raise ValueError("pins file exceeds 64 KiB")
+        if info.st_mode & 0o022:
+            raise ValueError("pins file must not be group- or world-writable")
+        allowed_owners = {0, os.getuid()}
+        sudo_uid = os.environ.get("SUDO_UID", "")
+        if sudo_uid.isdigit():
+            allowed_owners.add(int(sudo_uid))
+        if info.st_uid not in allowed_owners:
+            raise ValueError("pins file has an untrusted owner")
+        chunks = []
+        total = 0
+        with os.fdopen(fd, "rb") as source:
+            fd = -1
+            while total <= 65536:
+                chunk = source.read(min(8192, 65537 - total))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+        if total > 65536:
+            raise ValueError("pins file exceeds 64 KiB")
+        raw = b"".join(chunks)
+        text = raw.decode("utf-8")
+        return parse_pins(text), text
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def _write_lock_atomic(path: Path, content: str) -> None:
+    """Atomically replace a root-controlled lock without following a planted symlink."""
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    dir_fd = os.open(path.parent, flags)
+    temp_name = f".{path.name}.{os.getpid()}.{secrets.token_hex(8)}.tmp"
+    fd = -1
+    created_temp = False
+    try:
+        info = os.fstat(dir_fd)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+            raise PermissionError("versions.lock directory must be owned by the applying user")
+        create_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+        fd = os.open(temp_name, create_flags, 0o600, dir_fd=dir_fd)
+        created_temp = True
+        view = memoryview(content.encode("utf-8"))
+        while view:
+            written = os.write(fd, view)
+            view = view[written:]
+        os.fchown(fd, os.geteuid(), os.getegid())
+        os.fchmod(fd, 0o644)
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        os.replace(temp_name, path.name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        os.fsync(dir_fd)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        if created_temp:
+            try:
+                os.unlink(temp_name, dir_fd=dir_fd)
+            except FileNotFoundError:
+                pass
+        raise
+    finally:
+        os.close(dir_fd)
+
+
+def _require_root_for_upgrade() -> bool:
+    if os.geteuid() == 0:
+        override = os.environ.get("XCCODE_ETC")
+        if override and Path(override) != DEFAULT_ETC:
+            print("upgrade: --apply refuses a non-default XCCODE_ETC; unset the override so the "
+                  "installer and CLI use the same lock path", file=sys.stderr)
+            return False
+        return True
+    print("upgrade: --apply must run as root (for example, sudo xccode upgrade --apply); "
+          "versions.lock is operator-controlled", file=sys.stderr)
+    return False
 
 def upgrade(apply: bool, pins_path: Path | None = None) -> int:
-    """Show the pin table (installed vs pinned); --apply writes $ETC/versions.lock (§11)."""
-    lock = pins_path or (ETC / "versions.lock")
+    """Show installed vs candidate pins; root-only --apply writes the installer's lock (§11).
+
+    Does not fetch or install. The candidate is an explicit ``--pins`` file, else the operator's
+    /etc lock, else the currently installed lock. Applying replaces $ETC/versions.lock, which the
+    root installer reads on re-run. Root is required so the xccode account cannot stage a lock that
+    a later root install would trust.
+    """
+    if apply and not _require_root_for_upgrade():
+        return 2
+    lock = pins_path or (ETC / "versions.lock" if (ETC / "versions.lock").is_file()
+                         else INSTALLED_LOCK)
     if not lock.is_file():
         print(f"upgrade: no versions.lock at {lock}", file=sys.stderr)
         return 1
-    pins = load_pins(lock)
+    try:
+        if apply:
+            pins, text = _read_apply_pins(lock)
+        else:
+            pins = load_pins(lock)
+            text = lock.read_text()
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"upgrade: cannot read pins: {exc}", file=sys.stderr)
+        return 1
     installed = load_pins(INSTALLED_LOCK) if INSTALLED_LOCK.is_file() else {}
     print(f"{'component':<18}{'installed':<24}{'pinned':<24}")
     for name in COMPONENTS:
@@ -353,17 +461,20 @@ def upgrade(apply: bool, pins_path: Path | None = None) -> int:
         print(f"{marker}{name:<18}{(cur.version if cur else '—'):<24}"
               f"{(new.version if new else '—'):<24}")
     if apply:
-        problems = [p for p in __import__("xccode.versions", fromlist=["validate"])
-                    .validate(pins)]
+        from .versions import validate
+
+        problems = validate(pins)
         if problems:
             for p in problems:
                 print(f"upgrade: refusing — {p}", file=sys.stderr)
             return 1
-        tmp = ETC / "versions.lock.tmp"
-        tmp.write_text(lock.read_text())
-        os.replace(tmp, ETC / "versions.lock")  # atomic
-        print("upgrade: pins written; upgrades take effect when install.sh is re-run")
-        print("  (install.sh prefers $ETC/versions.lock over the release's bundled lock)")
+        target = ETC / "versions.lock"
+        try:
+            _write_lock_atomic(target, text)
+        except OSError as exc:
+            print(f"upgrade: could not write {target}: {exc}", file=sys.stderr)
+            return 1
+        print(f"upgrade: reviewed pins written to {target}; re-run install.sh to apply")
     else:
         print("upgrade: diff shown; apply with --apply (the operator then re-runs install.sh)")
     return 0
@@ -458,14 +569,18 @@ def cmd_secrets(args) -> int:
 
 
 def cmd_review(args) -> int:
-    if not args.item:
+    _drop_to_xccode()
+    if args.verb is None:
         return review_list()
-    if args.action == "show":
+    if not args.item:
+        print("review: an item id is required", file=sys.stderr)
+        return 2
+    if args.verb == "show":
         return review_show(args.item)
-    if args.action not in ("approve", "reject"):
+    if args.verb not in ("approve", "reject"):
         print("review: pass approve or reject (or show)", file=sys.stderr)
         return 2
-    return review_decide(args.item, approve=(args.action == "approve"))
+    return review_decide(args.item, approve=(args.verb == "approve"))
 
 
 def cmd_keep(args) -> int:
@@ -473,6 +588,7 @@ def cmd_keep(args) -> int:
 
 
 def cmd_report(args) -> int:
+    _drop_to_xccode()
     print(report(days=args.days))
     return 0
 
@@ -482,4 +598,7 @@ def cmd_upgrade(args) -> int:
 
 
 def cmd_export(args) -> int:
-    return export(aios=args.aios, out_dir=Path(args.out))
+    _drop_to_xccode()
+    out_value = args.out or os.environ.get("XCCODE_EXPORT_DIR") or str(STATE / "export")
+    out = Path(out_value).expanduser()
+    return export(aios=args.aios, out_dir=out)
