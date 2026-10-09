@@ -324,8 +324,11 @@ step_omniroute() {
     # OmniRoute's own documented escape hatch to webpack (build-next-isolated.mjs reads it); webpack
     # completes in ~2.5 min. (XC-CODE-001 §4.5)
     (cd "$omni_dir" && OMNIROUTE_USE_TURBOPACK=0 "$node_bin" --max-old-space-size=8192 scripts/build/build-next-isolated.mjs)
-    # OmniRoute's data dir must be writable by the xccode service user, not root.
+    # OmniRoute's data dir must be writable by the xccode service user, not root — recursively:
+    # the management CLI (`omniroute providers add` run as root, §4.5) writes .env root-only,
+    # which then breaks the service on restart (found on thor 2026-10-09).
     ensure_dir "$STATE/omniroute" "xccode:xccode" 0700
+    [ "$CHECK" = 1 ] || chown -R xccode:xccode "$STATE/omniroute"
     # The build runs as root but the service runs as xccode; OmniRoute's startup regenerates its
     # fumadocs MDX (`.source/`) and touches the Next.js build output (`.build/next`, `dist`), so
     # those runtime-writable trees must belong to xccode or the service crash-loops with

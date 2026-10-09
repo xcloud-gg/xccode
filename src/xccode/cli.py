@@ -203,6 +203,9 @@ def cmd_doctor(args) -> int:
     aios = passwd.get("aios")
     if aios is not None:
         candidates.append(f"{SYSTEMD_DIR}/user@{aios[0]}.service.d/40-xccode-paths.conf")
+    if "marius" in passwd:
+        # §4.3: the operator's opencode serve user unit (opencode.nvim backend).
+        candidates.append("/home/marius/.config/systemd/user/opencode-serve.service")
     existing = frozenset(p for p in candidates if Path(p).exists())
     host = Host(
         passwd=passwd,
