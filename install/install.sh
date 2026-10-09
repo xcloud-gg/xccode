@@ -471,6 +471,12 @@ step_services() {
     for timer in xccode-backup.timer xccode-bench.timer xccode-learn.timer; do
         systemctl start "$timer" >/dev/null 2>&1 || true
     done
+    # Upgrades likewise must take effect: after the venv/units changed, restart the daemons so
+    # they run the new code (the same upgrade-gap copy_file and step_venv fixed). try-restart
+    # is a no-op for services that are not running.
+    for svc in xcroute.service omniroute.service openviking.service tei.service; do
+        systemctl try-restart "$svc" >/dev/null 2>&1 || true
+    done
 }
 
 # --- 7. guardrails: render + write layers for the accounts that exist --------------
