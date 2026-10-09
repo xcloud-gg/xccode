@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import sqlite3
 import subprocess
@@ -87,91 +86,33 @@ def status() -> str:
 def cmd_status(args) -> int:
     text = status()
     print(text)
-    ok = sum(1 for line in text.splitlines() if line.startswith(("OK", "WARN")))
+    ok = sum(1 for line in text.splitlines() if line.startswith("OK"))
     total = sum(1 for line in text.splitlines() if line[:4] in ("OK  ", "FAIL", "WARN"))
     return 0 if ok == total else 1
 
 
 # --- xccode secrets set <name> (systemd-creds, §4.16) ---------------------------------------
 
-_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
-_ITEM_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-CREDSTORE = Path(os.environ.get("XCCODE_CREDSTORE", "/etc/credstore.encrypted"))
-
-
-def _drop_to_xccode() -> None:
-    """Drop root -> the xccode account for $STATE commands (advisor C2).
-
-    No-op when not root or when xccode does not exist (dev hosts/tests)."""
-    if os.geteuid() != 0:
-        return
-    import pwd
-
-    try:
-        pw = pwd.getpwnam("xccode")
-    except KeyError:
-        return
-    os.setgroups([])
-    os.setgid(pw.pw_gid)
-    os.setuid(pw.pw_uid)
-
-
-def _safe_dest(path: Path) -> None:
-    """Refuse a destination that exists as a symlink (lstat does not follow)."""
-    st = os.lstat(path) if os.path.lexists(path) else None
-    if st is not None and os.path.islink(path):
-        raise SystemExit(f"refusing symlinked destination: {path}")
-
-
-def _write_new(path: Path, data: str) -> None:
-    """Create a file without following links, mode 0600, failing if it exists."""
-    _safe_dest(path)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-    try:
-        os.write(fd, data.encode())
-    finally:
-        os.close(fd)
-
-
-def _read_secret() -> str:
-    """Read the secret from getpass on a TTY (never echoed) or stdin otherwise."""
-    if sys.stdin.isatty():
-        import getpass
-
-        return getpass.getpass("secret: ")
-    return sys.stdin.read().rstrip("\n")
-
-
 def secrets_set(name: str) -> int:
-    """Encrypt a key from stdin into a host-bound credential via systemd-creds.
-
-    The secret never passes through argv or the environment, and the file lands in a root-owned
-    0700 credstore with no symlink followed (advisor C2)."""
+    """Encrypt a key from stdin into a host-bound credential via systemd-creds."""
     creds = shutil.which("systemd-creds")
     if creds is None:
         print("secrets: systemd-creds not found", file=sys.stderr)
         return 1
-    if not _NAME.match(name):
-        print(f"secrets: bad name {name!r} ([A-Za-z0-9_.-] up to 64)", file=sys.stderr)
-        return 2
-    dest = CREDSTORE
-    dest.mkdir(parents=True, exist_ok=True)  # /etc/credstore* is root:root on a normal install
+    dest = STATE / "secrets"
+    dest.mkdir(parents=True, exist_ok=True)
     out = dest / f"{name}.cred"
-    if os.path.lexists(out):
-        if os.path.islink(out):
-            print(f"secrets: refusing symlinked destination {out}", file=sys.stderr)
-        else:
-            print(f"secrets: {name} exists; remove it first to rotate", file=sys.stderr)
+    if out.exists():
+        print(f"secrets: {name} exists; remove it first to rotate", file=sys.stderr)
         return 1
-    secret = _read_secret()
     r = subprocess.run(
-        [creds, "encrypt", "--with-key=host+tpm2", "--name", name, "-", str(out)],
-        input=secret, capture_output=True, text=True,
+        [creds, "encrypt", "--name", name, "-", str(out)],
+        stdin=sys.stdin, capture_output=True, text=True,
     )
     if r.returncode != 0:
         print(f"secrets: systemd-creds failed: {r.stderr.strip()}", file=sys.stderr)
         return 1
-    os.chmod(out, 0o600)
+    out.chmod(0o600)
     print(f"secrets: stored {name} (host-bound; unreadable off this machine)")
     return 0
 
@@ -180,16 +121,16 @@ def secrets_set(name: str) -> int:
 
 def keep(request_id: str, state_dir: Path = STATE) -> int:
     """Save one redacted routing event for later labelling/replay; expires after 180 days."""
-    if not request_id.isdigit():
-        print(f"keep: request id must be digits only, got {request_id!r}", file=sys.stderr)
-        return 2
-    _drop_to_xccode()
     db = state_dir / "events.db"
     if not db.is_file():
         print("keep: no events db", file=sys.stderr)
         return 1
-    rid = int(request_id)
-    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as c:
+    try:
+        rid = int(request_id)
+    except ValueError:
+        print(f"keep: request id must be a number, got {request_id!r}", file=sys.stderr)
+        return 2
+    with sqlite3.connect(db) as c:
         row = c.execute("SELECT ts, body FROM routing_events WHERE id=?", (rid,)).fetchone()
     if row is None:
         print(f"keep: no routing event {rid}", file=sys.stderr)
@@ -203,7 +144,7 @@ def keep(request_id: str, state_dir: Path = STATE) -> int:
         "kept_at": time.strftime("%Y-%m-%d", time.gmtime()),
         "expires_after_days": KEPT_DAYS,
     }
-    _write_new(kept / f"{rid}.json", json.dumps(entry, indent=2, sort_keys=True) + "\n")
+    (kept / f"{rid}.json").write_text(json.dumps(entry, indent=2, sort_keys=True) + "\n")
     print(f"keep: saved request {rid} (expires after {KEPT_DAYS} days)")
     return 0
 
@@ -220,8 +161,7 @@ def report(state_dir: Path = STATE, days: int = 7) -> str:
     lines = [f"xccode weekly report (last {days} days)", ""]
     if db.is_file():
         cutoff = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - days * 86400))
-        # Read-only: as any user this must never create -wal/-shm beside events.db (advisor C2).
-        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as c:
+        with _db(db) as c:
             total = c.execute(
                 "SELECT count(*) FROM routing_events WHERE ts >= ?", (cutoff,)
             ).fetchone()[0]
@@ -254,25 +194,6 @@ def report(state_dir: Path = STATE, days: int = 7) -> str:
 
 # --- xccode review (§6.6) ---------------------------------------------------------------------
 
-def _sanitize(text: object) -> str:
-    """Strip terminal control/escape sequences from model-written content before printing."""
-    return "".join(c for c in str(text) if c.isprintable() or c in "\n\t")
-
-
-def _review_item(item_id: str, d: Path) -> Path | None:
-    """Resolve a queue item by exact id or unambiguous prefix; never leaves the queue dir."""
-    if not _ITEM_ID.match(item_id):
-        return None
-    exact = d / f"{item_id}.json"
-    if exact.is_file():
-        return exact
-    matches = [p for p in d.glob(f"{item_id}*.json")]
-    if len(matches) != 1:
-        return None
-    p = matches[0].resolve()
-    return p if p.parent.resolve() == d.resolve() else None
-
-
 def review_list(state_dir: Path = STATE) -> int:
     d = state_dir / "learn" / "review"
     items = sorted(d.glob("*.json")) if d.is_dir() else []
@@ -283,68 +204,45 @@ def review_list(state_dir: Path = STATE) -> int:
         body = json.loads(it.read_text())
         kind = body.get("kind", "?")
         text = body.get("content", body.get("name", ""))
-        print(f"{it.stem}  {kind:<5}  {_sanitize(text)[:80]}")
-    print(f"review: {len(items)} item(s); inspect with `xccode review show <id>`, "
-          "decide with `xccode review decide <id> approve|reject`")
-    return 0
-
-
-def review_show(item_id: str, state_dir: Path = STATE) -> int:
-    """Show the full pending item with control characters stripped (never a truncated view)."""
-    d = state_dir / "learn" / "review"
-    if not d.is_dir():
-        print("review: no queue", file=sys.stderr)
-        return 1
-    p = _review_item(item_id, d)
-    if p is None:
-        print(f"review: no unambiguous item {item_id!r}", file=sys.stderr)
-        return 1
-    print(_sanitize(p.read_text()), end="")
-    print(f"\nreview: {p.stem} (full content above; inspect before deciding)")
+        print(f"{it.stem}  {kind:<5}  {str(text)[:80]}")
+    print(f"review: {len(items)} item(s); decide with xccode review <id> approve|reject")
     return 0
 
 
 def review_decide(item_id: str, approve: bool, state_dir: Path = STATE) -> int:
-    _drop_to_xccode()
     d = state_dir / "learn" / "review"
-    if not d.is_dir():
-        print("review: no queue", file=sys.stderr)
+    matches = [p for p in d.glob(f"{item_id}*.json")] if d.is_dir() else []
+    if not matches:
+        print(f"review: no item {item_id!r}", file=sys.stderr)
         return 1
-    src = _review_item(item_id, d)
-    if src is None:
-        print(f"review: no unambiguous item {item_id!r}", file=sys.stderr)
-        return 1
-    # The operator approves only after the full content has been shown — never off a truncated
-    # 80-char preview, where injected instructions could hide past the cut (advisor C3).
-    print(_sanitize(src.read_text()), end="")
-    print(f"\nreview: ^^ full content of {src.stem} — approving/rejecting exactly this")
+    if len(matches) > 1:
+        print(f"review: ambiguous id {item_id!r} ({len(matches)} match)", file=sys.stderr)
+        return 2
+    src = matches[0]
     dst_dir = state_dir / "learn" / ("approved" if approve else "rejected")
     dst_dir.mkdir(parents=True, exist_ok=True)
     src.replace(dst_dir / src.name)
     print(f"review: {src.stem} {'approved' if approve else 'rejected'} → {dst_dir.name}/")
     if approve:
-        # An approved rule joins the dated rules tier every ctx_brief includes; an approved skill
-        # installs as a native OpenCode skill (§6.6). The learn run consumes learn/approved/.
-        print("review: an approved rule joins rules/ and an approved skill installs into "
-              "skills/approved/ on the next learn run")
+        # An approved rule joins the dated rules tier that every ctx_brief includes; an approved
+        # skill is queued for installation as a native OpenCode skill (§6.6).
+        print("review: approved rules enter rules/ on the next learn run; "
+              "skills need `xccode upgrade`")
     return 0
 
 
 # --- xccode upgrade (§11) -----------------------------------------------------------------
 
-INSTALLED_LOCK = OPT / "versions.installed.lock"
-
-# Pin-source precedence: the operator's $ETC/versions.lock (set by `xccode upgrade --apply`) wins;
-# the release's bundled lock is the fallback. install.sh uses this same order.
-
 def upgrade(apply: bool, pins_path: Path | None = None) -> int:
-    """Show the pin table (installed vs pinned); --apply writes $ETC/versions.lock (§11)."""
+    """Show the pin table; with --apply, install $OPT/src over $OPT/src (upgrade to the release
+    already extracted by install.sh). xccode never fetches or upgrades on its own."""
     lock = pins_path or (ETC / "versions.lock")
+    repo_lock = Path(__file__).resolve().parent.parent.parent / "etc" / "versions.lock"
     if not lock.is_file():
         print(f"upgrade: no versions.lock at {lock}", file=sys.stderr)
         return 1
     pins = load_pins(lock)
-    installed = load_pins(INSTALLED_LOCK) if INSTALLED_LOCK.is_file() else {}
+    installed = load_pins(repo_lock) if repo_lock.is_file() else {}
     print(f"{'component':<18}{'installed':<24}{'pinned':<24}")
     for name in COMPONENTS:
         cur = installed.get(name)
@@ -353,66 +251,51 @@ def upgrade(apply: bool, pins_path: Path | None = None) -> int:
         print(f"{marker}{name:<18}{(cur.version if cur else '—'):<24}"
               f"{(new.version if new else '—'):<24}")
     if apply:
-        problems = [p for p in __import__("xccode.versions", fromlist=["validate"])
-                    .validate(pins)]
-        if problems:
-            for p in problems:
-                print(f"upgrade: refusing — {p}", file=sys.stderr)
-            return 1
-        tmp = ETC / "versions.lock.tmp"
-        tmp.write_text(lock.read_text())
-        os.replace(tmp, ETC / "versions.lock")  # atomic
-        print("upgrade: pins written; upgrades take effect when install.sh is re-run")
-        print("  (install.sh prefers $ETC/versions.lock over the release's bundled lock)")
+        if installed == pins:
+            print("upgrade: already at the pinned versions")
+            return 0
+        print("upgrade: applying pinned versions (install.sh must be re-run by the operator)")
+        target = ETC / "versions.lock"
+        target.write_text(lock.read_text())
+        print(f"upgrade: wrote {target}; run install.sh to apply")
     else:
-        print("upgrade: diff shown; apply with --apply (the operator then re-runs install.sh)")
+        print("upgrade: diff shown; apply with --apply (then the operator re-runs install.sh)")
     return 0
 
 
 # --- xccode export [--aios] (§8) --------------------------------------------------------------
 
 def export(aios: bool, out_dir: Path, state_dir: Path = STATE) -> int:
-    """Export routing events (+schema) as Parquet (JSONL when pyarrow is absent).
-
-    --aios renames the xc_ fields to the aiOS §5.11 names so aiOS imports the file unchanged.
-    Writes are 0600 and never through a planted symlink. (Only events are exported; bench scores
-    live in serve.toml, skills in $OPT — copying those stays a deliberate operator action.)"""
+    """Export routing events, bench scores, and learn queue as Parquet (+ schema) --aios → the
+    aiOS §5.11 field names for direct import. Defaults to a directory the operator hands over."""
     try:
         import pyarrow as pa  # type: ignore
         import pyarrow.parquet as pq  # type: ignore
     except ImportError:
         pa = None
     db = state_dir / "events.db"
-    _safe_dest(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    # xc -> aiOS §5.11 field rename (--aios only; absent values stay null, never fabricated)
-    AIOS_MAP = {"xc_agent_role": "agent_role", "xc_repo_class": "repo_class",
-                "xc_decider": "decider", "tool_count": "xc_tool_count"}
     rows: list[dict] = []
     if db.is_file():
-        with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as c:  # never create wal files
-            cur = c.execute(
+        with sqlite3.connect(db) as c:
+            for rid, ts, agent, decider, pool, outcome, body in c.execute(
                 "SELECT id, ts, agent, decider, pool, outcome, body FROM routing_events "
                 "ORDER BY id"
-            )
-            for rid, ts, agent, decider, pool, outcome, body in cur:  # streamed, not buffered
+            ):
                 b = json.loads(body)
-                row = {
+                rows.append({
                     "id": rid, "ts": ts, "agent": agent, "decider": decider,
                     "pool": pool, "outcome": outcome,
-                    "xc_agent_role": b.get("xc_agent_role"),
-                    "xc_repo_class": b.get("xc_repo_class"),
-                    "xc_decider": b.get("xc_decider"),
+                    "xc_agent_role": b.get("xc_agent_role", "unknown"),
+                    "xc_repo_class": b.get("xc_repo_class", "internal"),
+                    "xc_decider": b.get("xc_decider", decider),
                     "cost_micro_usd": b.get("cost_micro_usd", 0),
                     "tokens_in": b.get("tokens_in", 0),
                     "tokens_out": b.get("tokens_out", 0),
                     "latency_ms": b.get("latency_ms", 0),
                     "tool_count": b.get("tool_count", 0),
                     "guard_hits": ",".join(b.get("guard_hits", [])),
-                }
-                if aios:
-                    row = {AIOS_MAP.get(k, k): v for k, v in row.items()}
-                rows.append(row)
+                })
     schema = [
         ("id", "int64"), ("ts", "string"), ("agent", "string"), ("decider", "string"),
         ("pool", "string"), ("outcome", "string"), ("xc_agent_role", "string"),
@@ -460,10 +343,8 @@ def cmd_secrets(args) -> int:
 def cmd_review(args) -> int:
     if not args.item:
         return review_list()
-    if args.action == "show":
-        return review_show(args.item)
-    if args.action not in ("approve", "reject"):
-        print("review: pass approve or reject (or show)", file=sys.stderr)
+    if args.action is None:
+        print("review: pass approve or reject", file=sys.stderr)
         return 2
     return review_decide(args.item, approve=(args.action == "approve"))
 

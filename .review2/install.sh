@@ -15,12 +15,6 @@ STATE="${XCCODE_STATE:-/var/lib/xcloud/xccode}"
 OPT="${XCCODE_OPT:-/opt/xcloud/xccode}"
 SYSTEMD="${XCCODE_SYSTEMD:-/etc/systemd/system}"
 RELEASE="${XCCODE_RELEASE:-}"
-# The lock file: the operator's $ETC/versions.lock (written by `xccode upgrade --apply`) beats the
-# release's bundled lock; the bundle is the fallback on a fresh host (§11).
-versions_lock() {
-    if [ -f "$ETC/versions.lock" ]; then printf '%s\n' "$ETC/versions.lock"
-    else printf '%s\n' "$(dirname "$0")/../etc/versions.lock"; fi
-}
 
 usage() {
     cat <<EOF
@@ -78,35 +72,6 @@ ensure_dir() {  # ensure_dir <path> <owner> <mode> — idempotent mkdir + chown/
     fi
     [ "$CHECK" = 1 ] || chown -h "$owner" "$path"
     [ "$CHECK" = 1 ] || chmod "$mode" "$path"
-}
-
-# Anything under /home/$OPERATOR (profile, user units, xcc.env, serve.pass) must be written BY
-# the operator's account, never by root into an operator-controlled path (advisor C1: a planted
-# symlink or an inotify race would otherwise give an marius-run process root). `as_op <cmd...>`
-# runs the command as the operator; no chown follows because the file is created with the right
-# owner in the first place.
-as_op() {  # as_op <cmd...> — run as the operator ($OPERATOR), in a clean env
-    if [ "$CHECK" = 1 ]; then
-        echo "would (as $OPERATOR): $*"
-        return 0
-    fi
-    runuser -u "$OPERATOR" -- "$@"
-}
-
-# as_op_install <src> <dst> [mode] — copy_file semantics, but run entirely as the operator.
-as_op_install() {
-    src="$1" dst="$2" mode="${3:-0644}"
-    if [ "$CHECK" != 1 ] && runuser -u "$OPERATOR" -- test -f "$dst" \
-            && runuser -u "$OPERATOR" -- cmp -s "$src" "$dst"; then
-        echo "already: $dst"
-        return 0
-    fi
-    if [ "$CHECK" = 1 ]; then
-        if [ -f "$dst" ]; then echo "would: update $dst"; else echo "would: install $dst"; fi
-        return 0
-    fi
-    if runuser -u "$OPERATOR" -- test -f "$dst"; then echo ">> update $dst"; else echo ">> install $dst"; fi
-    as_op install -m "$mode" "$src" "$dst"
 }
 
 write_file() {  # write_file "<path>" <<'EOF' ... EOF — idempotent file write from stdin
@@ -302,7 +267,7 @@ step_runtime() {
 # installed as the published V2 package `@opencode/cli` (pinned in versions.lock); npm enforces
 # package integrity, so no hand-recorded sha256 is needed here.
 step_opencode() {
-    oc_ver=$(sed -n '/^\[opencode\]/,/^\[/p' "$(versions_lock)" \
+    oc_ver=$(sed -n '/^\[opencode\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     node_home="$OPT/node-v24.14.1-linux-x64"
     oc_bin="$OPT/opencode/bin/opencode"
@@ -344,7 +309,7 @@ step_node() {
 
 # --- 4e. OmniRoute: fetch pinned source, install deps, build (private router §4.5) --
 step_omniroute() {
-    omni_commit=$(sed -n '/^\[omniroute\]/,/^\[/p' "$(versions_lock)" \
+    omni_commit=$(sed -n '/^\[omniroute\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     omni_dir="$OPT/omniroute"
     node_bin="$OPT/node-v24.14.1-linux-x64/bin/node"
@@ -391,7 +356,7 @@ step_omniroute() {
 
 # --- 4f. dsh (DeepSeek Harness): npm package under the pinned Node runtime ---------
 step_dsh() {
-    dsh_ver=$(sed -n '/^\[dsh\]/,/^\[/p' "$(versions_lock)" \
+    dsh_ver=$(sed -n '/^\[dsh\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     npm_bin="$OPT/node-v24.14.1-linux-x64/bin/npm"
     # The headless job composition (§7): telemetry off, model routed through xcroute with the
@@ -413,7 +378,7 @@ step_dsh() {
 
 # --- 4g. OpenViking: project memory server (native Python, loopback 18180) ---------
 step_openviking() {
-    ov_ver=$(sed -n '/^\[openviking\]/,/^\[/p' "$(versions_lock)" \
+    ov_ver=$(sed -n '/^\[openviking\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     if [ -z "$ov_ver" ]; then echo "skip: no openviking pin"; return 0; fi
     if [ -x "$OPT/openviking/venv/bin/openviking-server" ]; then
@@ -453,7 +418,7 @@ EOF
 
 # --- 4h. Hermes: headless learner (own venv, pinned tag) --------------------------
 step_hermes() {
-    hermes_ver=$(sed -n '/^\[hermes\]/,/^\[/p' "$(versions_lock)" \
+    hermes_ver=$(sed -n '/^\[hermes\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     if [ -z "$hermes_ver" ]; then echo "skip: no hermes pin"; return 0; fi
     if [ -x "$OPT/hermes/.venv/bin/hermes" ]; then
@@ -489,9 +454,9 @@ EOF
 # Built once at release time (the from-source `cargo install` is ~3-4 h — impractical), shipped as a
 # pinned binary like opencode/gitleaks, verified by its sha256 in versions.lock (XC-CODE-001 §4.8).
 step_tei() {
-    tei_ver=$(sed -n '/^\[tei\]/,/^\[/p' "$(versions_lock)" \
+    tei_ver=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
-    tei_sha=$(sed -n '/^\[tei\]/,/^\[/p' "$(versions_lock)" \
+    tei_sha=$(sed -n '/^\[tei\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^sha256 = "\(.*\)"$/\1/p')
     router="$OPT/tei/bin/text-embeddings-router"
     if [ -z "$tei_ver" ] || [ -z "$tei_sha" ]; then echo "skip: no tei pin"; return 0; fi
@@ -565,13 +530,13 @@ step_restore() {
 # --- 6. operator profile: xcc launcher (OpenCode profile, OAC, skills next) --------
 step_profile() {
     dst="/home/$OPERATOR/.local/bin/xcc"
-    [ "$CHECK" != 1 ] && as_op install -d -m 0755 "$(dirname "$dst")"
-    as_op_install "$(dirname "$0")/xcc" "$dst" 0755
+    ensure_dir "/home/$OPERATOR/.local/bin" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/xcc" "$dst" 0755
     # OpenCode profile (provider -> xcroute, model xc/auto, xccode-mcp, OAC agents). The xcc launcher
     # points OPENCODE_CONFIG here, so xccode's OpenCode never reads another install's config.
     prof="/home/$OPERATOR/.config/xccode/opencode"
-    [ "$CHECK" != 1 ] && as_op install -d -m 0755 "$prof"
-    oac_commit=$(sed -n '/^\[openagentscontrol\]/,/^\[/p' "$(versions_lock)" \
+    ensure_dir "$prof" "$OPERATOR:$OPERATOR" 0755
+    oac_commit=$(sed -n '/^\[openagentscontrol\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^commit = "\(.*\)"$/\1/p')
     if [ -n "$oac_commit" ] && [ "$CHECK" != 1 ]; then
         ensure_dir "$OPT/oac" "root:root" 0755
@@ -581,16 +546,13 @@ step_profile() {
             (cd "$OPT/oac" && git fetch --depth 1 origin "$oac_commit" >/dev/null 2>&1 && git checkout -q "$oac_commit") || true
         fi
         echo ">> write profile with OAC agents"
-        # oac renders to a root-owned temp file first, then the operator installs it — root never
-        # writes into the operator's home directly (advisor C1; no symlinked-target overwrite).
-        tmp="$(mktemp)" && chmod 0644 "$tmp"
         "$OPT/venv/bin/xccode" oac --oac-dir "$OPT/oac" \
-            --profile "$(dirname "$0")/../etc/opencode/profile.json" --out "$tmp" \
-            && as_op install -m 0644 "$tmp" "$prof/opencode.json"
-        rm -f "$tmp"
+            --profile "$(dirname "$0")/../etc/opencode/profile.json" --out "$prof/opencode.json"
     else
-        as_op_install "$(dirname "$0")/../etc/opencode/profile.json" "$prof/opencode.json" 0644
+        copy_file "$(dirname "$0")/../etc/opencode/profile.json" "$prof/opencode.json" 0644
     fi
+    chown "$OPERATOR:$OPERATOR" "$prof/opencode.json" 2>/dev/null || true
+    # Upcoming: plugins, native skills, opencode serve user unit.
 }
 
 # --- 9. collect: marius's user units (hourly + session end) ------------------------
@@ -600,9 +562,11 @@ step_collect() {
     # user and only exist when there is a desktop session (linger not required — the timer is
     # wanted-by default.target in the user manager). Enabling happens on first login.
     udir="/home/$OPERATOR/.config/systemd/user"
-    [ "$CHECK" != 1 ] && as_op install -d -m 0755 "$udir"
-    as_op_install "$(dirname "$0")/units/xccode-collect.service" "$udir/xccode-collect.service"
-    as_op_install "$(dirname "$0")/units/xccode-collect.timer" "$udir/xccode-collect.timer"
+    ensure_dir "$udir" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/units/xccode-collect.service" "$udir/xccode-collect.service"
+    copy_file "$(dirname "$0")/units/xccode-collect.timer" "$udir/xccode-collect.timer"
+    chown "$OPERATOR:$OPERATOR" "$udir/xccode-collect.service" "$udir/xccode-collect.timer" 2>/dev/null || true
+    # "Enable" the timer the way `systemctl --user enable` does: a wants symlink under
     # timers.target.wants. Doing it as install (root, no session bus) — not `systemctl --user` —
     # means it picks up on the operator's next login without any manual step (found dead on thor).
     if [ "$CHECK" = 1 ]; then
@@ -610,8 +574,10 @@ step_collect() {
         return 0
     fi
     wants="$udir/timers.target.wants"
-    as_op install -d "$wants"
-    as_op ln -sf ../xccode-collect.timer "$wants/xccode-collect.timer"
+    mkdir -p "$wants"
+    ln -sf ../xccode-collect.timer "$wants/xccode-collect.timer"
+    chown -h "$OPERATOR:$OPERATOR" "$wants/xccode-collect.timer" 2>/dev/null || true
+    chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
 }
 
 # --- 9b. opencode serve: the operator's opencode.nvim backend on 127.0.0.1:18090 (§4.3) --------
@@ -628,7 +594,7 @@ step_serve() {
         echo "would: write $cred (generated serve password)"
     else
         echo ">> write $cred (opencode serve password; also the opencode.nvim client password)"
-        [ "$CHECK" != 1 ] && as_op install -d -m 0700 "$(dirname "$cred")"
+        ensure_dir "$(dirname "$cred")" "$OPERATOR:$OPERATOR" 0700
         # Written AS the operator (never root into an operator-owned dir): a pre-planted symlink
         # at $cred.tmp must never be followed or chowned by root (advisor C5).
         runuser -u "$OPERATOR" -- sh -c 'umask 077; f=$(mktemp "$1.XXXXXX") \
@@ -637,15 +603,18 @@ step_serve() {
     fi
     # The marius USER unit — starts with the desktop session (default.target), like collect.
     udir="/home/$OPERATOR/.config/systemd/user"
-    [ "$CHECK" != 1 ] && as_op install -d -m 0755 "$udir"
-    as_op_install "$(dirname "$0")/units/opencode-serve.service" "$udir/opencode-serve.service"
+    ensure_dir "$udir" "$OPERATOR:$OPERATOR" 0755
+    copy_file "$(dirname "$0")/units/opencode-serve.service" "$udir/opencode-serve.service"
+    chown "$OPERATOR:$OPERATOR" "$udir/opencode-serve.service" 2>/dev/null || true
     if [ "$CHECK" = 1 ]; then
         echo "would: link $udir/default.target.wants/opencode-serve.service"
         return 0
     fi
     wants="$udir/default.target.wants"
-    as_op install -d "$wants"
-    as_op ln -sf ../opencode-serve.service "$wants/opencode-serve.service"
+    mkdir -p "$wants"
+    ln -sf ../opencode-serve.service "$wants/opencode-serve.service"
+    chown -h "$OPERATOR:$OPERATOR" "$wants/opencode-serve.service" 2>/dev/null || true
+    chown -R "$OPERATOR:$OPERATOR" "$wants" 2>/dev/null || true
     # Linger LAST: the operator's user manager must persist beyond the login session — `opencode
     # serve` is a user unit, and background dsh jobs (§7) run in user units that have to survive
     # the session that started them. It comes after the unit + password exist, so a lingering
@@ -664,15 +633,12 @@ step_tokens() {
     if [ -f "$tokfile" ]; then echo "already: tokens"; return 0; fi
     if [ "$CHECK" = 1 ]; then echo "would: generate the five xcroute agent tokens"; return 0; fi
     echo ">> generate xcroute agent tokens"
-    # Raw tokens are only ever 0600: umask 077 from creation (never a world-readable window),
-    # then root:xccode 0640 so services can read what they need (advisor: pre-existing race).
-    # Only sha256 digests go into serve.toml.
-    ( umask 077
-      : > "$tokfile.tmp"
-      for agent in opencode hermes dsh-bench dsh-job openviking; do
-          printf '%s=%s\n' "$agent" "$(openssl rand -hex 32)" >> "$tokfile.tmp"
-      done
-    )
+    # Raw tokens land in root:xccode 0640; only their sha256 digests go into serve.toml. Consumers
+    # read the raw token they need from here (the Hermes config.yaml, OpenViking's VLM, xccode-mcp).
+    : > "$tokfile.tmp"
+    for agent in opencode hermes dsh-bench dsh-job openviking; do
+        printf '%s=%s\n' "$agent" "$(openssl rand -hex 32)" >> "$tokfile.tmp"
+    done
     chown root:xccode "$tokfile.tmp" 2>/dev/null || true
     chmod 0640 "$tokfile.tmp"
     mv "$tokfile.tmp" "$tokfile"
@@ -725,12 +691,9 @@ model:
 EOF
     fi
     if [ -n "$openviking_token" ]; then
-        # The token goes on stdin (environment is fine too), never on the python argv (any user
-        # could read it via /proc/*/cmdline) — advisor pre-existing finding.
-        printf '%s\n' "$openviking_token" | python3 - "$ETC/ov.conf" <<'PY'
+        python3 - "$ETC/ov.conf" "$openviking_token" <<'PY'
 import json, sys
-path = sys.argv[1]
-token = sys.stdin.read().strip()
+path, token = sys.argv[1], sys.argv[2]
 with open(path) as f:
     cfg = json.load(f)
 cfg["vlm"] = {"provider": "openai", "model": "xc/auto",
@@ -751,7 +714,7 @@ step_xcc_env() {
     if [ -f "$xcc_env" ]; then echo "already: xcc.env"; return 0; fi
     if [ "$CHECK" = 1 ]; then echo "would: write $xcc_env (XCC_TOKEN)"; return 0; fi
     echo ">> write xcc.env (XCC_TOKEN for xcc)"
-    as_op install -d -m 0700 "$(dirname "$xcc_env")"
+    ensure_dir "$(dirname "$xcc_env")" "$OPERATOR:$OPERATOR" 0700
     opencode_tok="$(sed -n 's/^opencode=//p' "$tokfile")"
     dsh_tok="$(sed -n 's/^dsh-job=//p' "$tokfile")"
     # Written AS the operator, never by root into an operator-owned dir (symlink-safe; C5).
@@ -784,12 +747,10 @@ main() {
     step_xcc_env
     step_guard
     step_restore
+    # Upcoming increments: full profile.
     if [ "$CHECK" = 1 ]; then
         echo "check: dry run complete; nothing was changed"
     else
-        # Record what this install actually shipped so `xccode upgrade` shows real installed vs
-        # pinned versions (advisor C4). The lock in play is the operator's $ETC one when set.
-        install -m 0644 "$(versions_lock)" "$OPT/versions.installed.lock"
         echo "install complete; run: xccode doctor"
     fi
 }

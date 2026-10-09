@@ -71,8 +71,12 @@ def test_review_approve_moves_to_approved(tmp_path, capsys):
 def test_review_reject_and_ambiguous(tmp_path):
     _seed_review(tmp_path)
     (tmp_path / "learn" / "review" / "abc999.json").write_text("{}")
-    assert ops.review_decide("abc", approve=False, state_dir=tmp_path) == 2  # ambiguous
-    assert ops.review_decide("zzz", approve=False, state_dir=tmp_path) == 1  # unknown
+    # ambiguous and unknown both refuse without touching anything (advisor C3: exact/prefix only)
+    assert ops.review_decide("abc", approve=False, state_dir=tmp_path) == 1
+    assert ops.review_decide("zzz", approve=False, state_dir=tmp_path) == 1
+    assert (tmp_path / "learn" / "review" / "abc123.json").exists()
+    assert (tmp_path / "learn" / "review" / "abc999.json").exists()
+    assert not (tmp_path / "learn" / "approved").exists()
 
 
 # --- report ---
