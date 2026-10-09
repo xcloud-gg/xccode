@@ -26,8 +26,9 @@ ROOT=/var/tmp/xccode-vm-test && mkdir -p "$ROOT"
 curl -fL -o "$ROOT/debian-13-generic-amd64.qcow2" "$IMAGE_URL"
 sha512sum -c <(echo "$IMAGE_SHA512  $ROOT/debian-13-generic-amd64.qcow2")
 # the full install (build deps + OmniRoute/TEI builds + venvs) exceeds the image's 3 GiB root,
-# and the OmniRoute Next.js + TEI Rust builds need real headroom — resize the disk and RAM:
-qemu-img resize "$ROOT/debian-13-generic-amd64.qcow2" 20G   # cloud-init growpart fills the root
+# and the OmniRoute Next.js + TEI Rust builds need real headroom. Use the sizing proven in B-50:
+# 16 GiB RAM, 4 vCPU host-passthrough (AVX2 required), 40 GiB disk.
+qemu-img resize "$ROOT/debian-13-generic-amd64.qcow2" 40G   # cloud-init growpart fills the root
 
 # 1. throwaway test signing key + signed release + the repo tarball the seed installs from
 export GNUPGHOME="$ROOT/keys"

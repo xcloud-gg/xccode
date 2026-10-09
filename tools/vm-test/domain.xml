@@ -1,9 +1,11 @@
 <domain type='kvm'>
   <name>xccode-test</name>
-  <!-- 8 GiB / 4 vCPU: the installer builds OmniRoute (Next.js) and TEI (Rust), which need real
-       headroom — 2 GiB OOMs on both (see DECISIONS). A real thor-class host has this to spare. -->
-  <memory unit='MiB'>8192</memory>
+  <!-- 16 GiB / 4 vCPU / host-passthrough: OmniRoute's webpack build peaks around 5.5 GiB worker RSS
+       and the installed tree needs ~20 GiB disk; 8 GiB OOMs and qemu64 (no AVX2) hangs the OpenCode
+       npm postinstall (see DECISIONS). A real thor-class host has this to spare. -->
+  <memory unit='MiB'>16384</memory>
   <vcpu>4</vcpu>
+  <cpu mode='host-passthrough'/>
   <os>
     <type arch='x86_64'>hvm</type>
     <boot dev='hd'/>
