@@ -4,6 +4,13 @@
 # itself is never written into the job dir or this file).
 - id: session-telemetry-otel
   disabled: true
+# Bash via the unsandboxed Local backend: jobs already run inside xccode's own bubblewrap
+# (run.sh) and nested bwrap is refused inside a read-only /proc userns, so dsh's sandbox
+# backend cannot initialise (proven on thor). The outer bwrap provides the real isolation.
+- id: bash-sandbox
+  disabled: true
+- id: bash-local
+  name: "@deepseek-ai/dsh-bash-local"
 - id: llm-pi-ai
   config:
     providers:

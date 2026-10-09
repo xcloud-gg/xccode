@@ -125,5 +125,5 @@ def test_collect_summarises_branch_diffstat_and_final_answer(tmp_path, monkeypat
     out = jobs.collect(job_id, jobs_dir)
     assert f"job {job_id}: done (exit 0)" in out
     assert f"branch: xc/job-{job_id}" in out
-    assert "src/app.py | 4 ++--" in out
+    assert "src/app.py | 4 ++--" in out and "(no committed changes)" not in out
     assert "renamed all the things" in out

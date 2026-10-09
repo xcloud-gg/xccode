@@ -210,15 +210,21 @@ def collect(job_id: str, jobs_dir: Path = JOBS_DIR) -> str:
         ["git", "-C", meta["repo"], "diff", "--stat", "HEAD", meta["branch"]],
         capture_output=True, text=True,
     ).stdout.strip()
+    # Uncommitted work in the job worktree is still operator-visible output (dsh's fs tools write
+    # without committing; dsh's commit step may fail mid-job). Report it next to the branch diff.
+    dirty = subprocess.run(
+        ["git", "-C", meta["worktree"], "status", "--porcelain"],
+        capture_output=True, text=True,
+    ).stdout.strip()
     summary = _final_text(d / "stdout.jsonl")
     lines = [
         f"job {job_id}: {meta['state']} (exit {meta.get('exit_code', '?')})",
         f"branch: {meta['branch']}  (merge or discard)",
         "",
         "diff --stat:",
-        diffstat or "(no changes)",
-        "",
-        "final answer:",
-        summary or "(empty)",
+        diffstat or "(no committed changes)",
     ]
+    if dirty:
+        lines += ["", "worktree (uncommitted):", dirty]
+    lines += ["", "final answer:", summary or "(empty)"]
     return "\n".join(lines) + "\n"
