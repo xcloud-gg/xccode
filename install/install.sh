@@ -251,19 +251,21 @@ step_opencode() {
     oc_ver=$(sed -n '/^\[opencode\]/,/^\[/p' "$(dirname "$0")/../etc/versions.lock" \
         | sed -n 's/^version = "\(.*\)"$/\1/p')
     node_home="$OPT/node-v24.14.1-linux-x64"
+    oc_bin="$OPT/opencode/bin/opencode"
     if [ -z "$oc_ver" ]; then echo "skip: no opencode pin"; return 0; fi
-    if [ -x "$node_home/bin/opencode" ] && "$node_home/bin/opencode" --version 2>/dev/null | grep -q "v${oc_ver}\$"; then
+    if [ -x "$oc_bin" ] && "$oc_bin" --version 2>/dev/null | grep -q "v${oc_ver}\$"; then
         echo "already: opencode $oc_ver"
         return 0
     fi
     if [ "$CHECK" = 1 ]; then echo "would: npm install -g @opencode/cli@${oc_ver}"; return 0; fi
     echo ">> npm install -g @opencode/cli@${oc_ver}"
-    # npm's shebang is `#!/usr/bin/env node` — put the pinned Node 24 first so the install (and the
-    # package postinstall) resolves node 24, and pass --prefix so NPM_CONFIG_PREFIX / .npmrc can't
-    # redirect the global install away from the pinned tree (same as dsh).
-    PATH="$node_home/bin:$PATH" "$node_home/bin/npm" install -g --prefix "$node_home" "@opencode/cli@${oc_ver}" \
+    # OpenCode lives at $OPT/opencode (spec §15.3 "opencode/ OpenCode release binary"), not the
+    # pinned Node's prefix. npm's shebang is `#!/usr/bin/env node`, so put the pinned Node 24 first
+    # for the install + postinstall, and pass --prefix so NPM_CONFIG_PREFIX / .npmrc can't redirect
+    # the install elsewhere.
+    PATH="$node_home/bin:$PATH" "$node_home/bin/npm" install -g --prefix "$OPT/opencode" "@opencode/cli@${oc_ver}" \
         || { echo "install.sh: opencode install failed" >&2; exit 1; }
-    [ -x "$node_home/bin/opencode" ] \
+    [ -x "$oc_bin" ] \
         || { echo "install.sh: opencode not found after install" >&2; exit 1; }
 }
 
