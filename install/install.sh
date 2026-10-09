@@ -84,17 +84,19 @@ write_file() {  # write_file "<path>" <<'EOF' ... EOF — idempotent file write 
     cat > "$path"
 }
 
-copy_file() {  # copy_file <src> <dst> [mode] — idempotent install of a tracked asset
+copy_file() {  # copy_file <src> <dst> [mode] — idempotent install of a tracked asset.
+    # Overwrites when the tracked asset changed so an upgrade actually applies it; a no-op when the
+    # installed copy is byte-identical. (Skip-if-exists would hide every asset change on re-install.)
     src="$1" dst="$2" mode="${3:-0644}"
-    if [ -f "$dst" ]; then
+    if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
         echo "already: $dst"
         return 0
     fi
     if [ "$CHECK" = 1 ]; then
-        echo "would: install $dst"
+        if [ -f "$dst" ]; then echo "would: update $dst"; else echo "would: install $dst"; fi
         return 0
     fi
-    echo ">> install $dst"
+    if [ -f "$dst" ]; then echo ">> update $dst"; else echo ">> install $dst"; fi
     install -m "$mode" "$src" "$dst"
 }
 
@@ -134,7 +136,7 @@ ManagedOOMMemoryPressure=kill
 EOF
 }
 
-# --- 2. packages (Debian main only); gitleaks from the signed release (step 4) --
+# --- 2. packages (Debian main only) ---
 step_packages() {
     for pkg in git curl bubblewrap restic auditd python3-venv gpgv; do
         if dpkg -s "$pkg" >/dev/null 2>&1; then
@@ -143,9 +145,10 @@ step_packages() {
             run "apt-get install -y $pkg" apt-get install -y "$pkg"
         fi
     done
-    # `uv` is not a Debian package: it is installed into the venv from the signed release, and
-    # gitleaks from its pinned release binary (§11). Both land via the fetch step. TEI's prebuilt
-    # text-embeddings-router ships as a binary (no Rust build at install time; §4.8).
+    # `uv` is not a Debian package: it is installed into the venv from the signed release (step 4b).
+    # gitleaks is a reserved pin only (Guard-lite uses its own regex rule set at runtime; nothing
+    # invokes the gitleaks binary), so there is deliberately no step_gitleaks — see versions.lock.
+    # TEI's prebuilt text-embeddings-router ships as a binary (no Rust build at install time; §4.8).
 }
 
 # --- 3. /opt/xcloud/xccode and /etc/xcloud/xccode (root-owned) ------------------

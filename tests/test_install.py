@@ -100,6 +100,32 @@ def test_check_reflects_existing_files(tmp_path):
     assert "already: " + str(etc / "opencode.json") in r.stdout
 
 
+def test_check_shows_update_for_changed_tracked_asset(tmp_path):
+    # copy_file must overwrite a tracked asset when its content changed (not skip-if-exists), so an
+    # upgrade actually applies. A changed systemd unit therefore shows "would: update".
+    sysd = tmp_path / "systemd"
+    sysd.mkdir(parents=True)
+    (sysd / "xcroute.service").write_text("# stale unit\n")
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(sysd)},
+    )
+    assert f"would: update {sysd / 'xcroute.service'}" in r.stdout
+
+
+def test_check_shows_already_for_unchanged_tracked_asset(tmp_path):
+    # copy_file is still a no-op when the installed asset is byte-identical to the tracked source.
+    sysd = tmp_path / "systemd"
+    sysd.mkdir(parents=True)
+    unit_src = REPO / "install" / "units" / "xcroute.service"
+    (sysd / "xcroute.service").write_text(unit_src.read_text())
+    r = _run(
+        "--operator", "marius", "--check",
+        env={"XCCODE_SYSTEMD": str(sysd)},
+    )
+    assert f"already: {sysd / 'xcroute.service'}" in r.stdout
+
+
 def test_check_skips_restore_without_repo(tmp_path):
     r = _run("--operator", "marius", "--check", env={"XCCODE_ETC": str(tmp_path / "etc")})
     assert "skip: no --restore" in r.stdout

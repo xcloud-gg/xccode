@@ -17,6 +17,9 @@ commit = "37ca233fa5597a5abb90cba73165deafffe0344f"
 [gitleaks]
 version = "8.30.1"
 sha256 = "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+# Reserved pin: Guard-lite (src/xccode/xcroute/guard.py) is a pure-Python regex rule set and does
+# not invoke the gitleaks binary, and `xccode doctor` does not check for it, so no step_gitleaks
+# installs it at runtime. Kept here as the future rule-set swap-in source (DECISIONS 2026-10-01).
 
 [hermes]
 version = "v2026.9.24"
