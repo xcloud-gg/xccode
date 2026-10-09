@@ -24,7 +24,12 @@ _STATUS: dict[int, int] = {400: 400, 401: 401, 403: 403, 429: 429, 502: 502, 503
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: str | None = None
+    # Tool-call loop fields (§7): assistant turns may carry tool_calls; tool results carry
+    # tool_call_id/name. Content is None on pure tool-call turns.
+    tool_calls: list[dict] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
 
 
 class ChatRequest(BaseModel):
@@ -32,6 +37,9 @@ class ChatRequest(BaseModel):
     messages: list[Message] = Field(default_factory=list)
     session: str | None = None
     stream: bool = False
+    # OpenAI-style tool definitions, passed through to the provider untouched (dsh jobs, §7).
+    tools: list[dict] | None = None
+    tool_choice: str | dict | None = None
 
 
 def _bearer(header: str | None) -> str | None:
@@ -44,6 +52,9 @@ def _completion(model: str, r: Result) -> dict:
     ev = r.event
     ti = ev.tokens_in if ev else 0
     to = ev.tokens_out if ev else 0
+    message: dict = {"role": "assistant", "content": r.text}
+    if r.tool_calls:
+        message["tool_calls"] = [dict(tc) for tc in r.tool_calls]
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
@@ -52,8 +63,8 @@ def _completion(model: str, r: Result) -> dict:
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": r.text},
-                "finish_reason": "stop",
+                "message": message,
+                "finish_reason": "tool_calls" if r.tool_calls else "stop",
             }
         ],
         "usage": {"prompt_tokens": ti, "completion_tokens": to, "total_tokens": ti + to},
@@ -114,6 +125,8 @@ def create_app(router: Router) -> FastAPI:
                 model=body.model,
                 messages=[m.model_dump() for m in body.messages],
                 session=session,
+                tools=body.tools,
+                tool_choice=body.tool_choice,
             )
         )
         if body.stream and r.status == 200:

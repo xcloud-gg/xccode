@@ -39,9 +39,11 @@ class Completion:
     tokens_out: int
     cost_micro_usd: int
     failover: bool = False
+    # Tool calls the model asked for (§7 dsh jobs): passed through untouched.
+    tool_calls: tuple[dict, ...] | None = None
 
 
-Provider = Callable[[str, list[dict]], Completion]  # (pool, messages) -> Completion
+Provider = Callable[..., Completion]  # (pool, messages[, tools]) -> Completion
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,8 @@ class Request:
     session: str
     cwd: str | None = None
     remote_url: str | None = None
+    tools: list[dict] | None = None
+    tool_choice: dict | str | None = None
 
 
 @dataclass
@@ -61,6 +65,7 @@ class Result:
     text: str = ""
     event: RoutingEvent | None = None
     detail: str = ""
+    tool_calls: tuple | None = None
 
 
 @dataclass
@@ -158,7 +163,12 @@ class Router:
 
         start = time.monotonic()
         try:
-            comp = self.provider(pool, messages)
+            # Tools go through only when the caller sent them — the Provider protocol stays
+            # two-argument for simple integrations and tests.
+            if req.tools is not None:
+                comp = self.provider(pool, messages, tools=req.tools, tool_choice=req.tool_choice)
+            else:
+                comp = self.provider(pool, messages)
         except ProviderError as e:
             ms = int((time.monotonic() - start) * 1000)
             return done(502, decider, "error:provider", mode=mode, pool=pool, hits=hits,
@@ -171,5 +181,7 @@ class Router:
         self.budget.record(day, agent, cfg.provider, charged)
         if decider != "pinned":
             self.tracker.remember(req.session, user_text, pool)
-        return done(200, decider, "ok", mode=mode, pool=pool, hits=hits, comp=comp, ms=ms,
-                    cost=charged, text=comp.text)
+        out = done(200, decider, "ok", mode=mode, pool=pool, hits=hits, comp=comp, ms=ms,
+                   cost=charged, text=comp.text)
+        out.tool_calls = tuple(comp.tool_calls) if comp.tool_calls else None
+        return out

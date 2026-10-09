@@ -222,3 +222,79 @@ def test_chat_stream_provider_error_is_json(tmp_path):
     )
     assert r.status_code == 502
     assert r.json()["error"]["code"] == "502"
+
+
+TOOL = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "write a file",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}},
+    },
+}
+
+
+def test_tools_are_forwarded_and_tool_calls_returned(tmp_path):
+    """§7: a dsh job sends OpenAI tool definitions; the provider must see them and its
+    tool_calls answer must reach the caller with finish_reason=tool_calls."""
+    seen: dict = {}
+
+    def provider(pool, messages, tools=None, tool_choice=None):
+        seen["tools"] = tools
+        seen["tool_choice"] = tool_choice
+        return Completion(
+            text="",
+            tokens_in=1,
+            tokens_out=2,
+            cost_micro_usd=100,
+            tool_calls=({"id": "call_1", "type": "function",
+                         "function": {"name": "write_file", "arguments": "{}"}},),
+        )
+
+    client = TestClient(create_app(_router(tmp_path, provider=provider)))
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "xc/auto",
+            "messages": [{"role": "user", "content": "create a file"}],
+            "tools": [TOOL],
+            "tool_choice": "auto",
+        },
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert r.status_code == 200
+    assert seen["tools"] == [TOOL] and seen["tool_choice"] == "auto"
+    choice = r.json()["choices"][0]
+    assert choice["finish_reason"] == "tool_calls"
+    assert choice["message"]["tool_calls"][0]["function"]["name"] == "write_file"
+
+
+def test_tool_results_round_trip_in_messages(tmp_path):
+    """The tool loop's second turn carries assistant tool_calls + a tool result; both must reach
+    the provider (and Guard-lite must tolerate content-less turns)."""
+    captured: list = []
+
+    def provider(pool, messages, tools=None, tool_choice=None):
+        captured.extend(messages)
+        return Completion(text="done", tokens_in=1, tokens_out=2, cost_micro_usd=100)
+
+    client = TestClient(create_app(_router(tmp_path, provider=provider)))
+    r = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "xc/auto",
+            "messages": [
+                {"role": "user", "content": "create a file"},
+                {"role": "assistant", "content": None,
+                 "tool_calls": [{"id": "call_1", "type": "function",
+                                 "function": {"name": "write_file", "arguments": "{}"}}]},
+                {"role": "tool", "tool_call_id": "call_1", "name": "write_file",
+                 "content": "ok"},
+            ],
+            "tools": [TOOL],
+        },
+        headers={"Authorization": "Bearer secret"},
+    )
+    assert r.status_code == 200
+    assert any(m.get("role") == "tool" and m.get("tool_call_id") == "call_1"
+               for m in captured)

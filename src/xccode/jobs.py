@@ -39,9 +39,10 @@ JOB_CORDIS = os.environ.get("XCCODE_JOB_CORDIS", "/etc/xcloud/xccode/dsh/job.cor
 _JOB_ID = re.compile(r"^[0-9]{8}T[0-9]{6}-[0-9a-f]{6}$")
 
 # The runner template: dsh headless in a bubblewrap sandbox when available (worktree the only rw
-# mount, everything else read-only — §7 "worktree rw · repo .git ro · everything else ro"), plain
-# otherwise. Writes stdout.jsonl (dsh --json events), rc, and the done marker. {dsh} is the pinned
-# dsh binary path rendered per job, so it survives module env changes.
+# checkout, repo .git rw for the job branch's commits, everything else read-only — §7; the git dir
+# must stay writable or git cannot commit the job branch at all), plain otherwise. Writes
+# stdout.jsonl (dsh --json events), rc, and the done marker. {dsh} and {repo_git} are rendered per
+# job. dsh's own HOME is a per-job dir so its session store never lands in the job branch diff.
 RUNNER_TEMPLATE = """#!/bin/sh
 # xc job runner — generated per job by xccode.jobs.start; edits are lost.
 set -u
@@ -49,7 +50,10 @@ cd "$(dirname "$0")"
 rc=0
 if command -v bwrap >/dev/null 2>&1; then
     bwrap --dev-bind /dev /dev --proc /proc --tmpfs /tmp --ro-bind / / \\
-        --bind "$PWD/worktree" "$PWD/worktree" --chdir "$PWD/worktree" \\
+        --bind "{repo_git}" "{repo_git}" \\
+        --bind "$PWD/worktree" "$PWD/worktree" \\
+        --bind "$PWD/dsh-home" "$PWD/dsh-home" \\
+        --setenv HOME "$PWD/dsh-home" --chdir "$PWD/worktree" \\
         -- {dsh} headless --patch "$PWD/job.cordis.yml" --json - \\
         < task.txt > stdout.jsonl 2> stderr.log || rc=$?
 else
@@ -91,6 +95,7 @@ def start(
     branch = f"xc/job-{job_id}"
     d = jobs_dir / job_id
     d.mkdir(parents=True)
+    (d / "dsh-home").mkdir()  # dsh's session store inside the sandbox; never in the branch diff
     (d / "task.txt").write_text(task)
     worktree = d / "worktree"
     spawn(
@@ -112,25 +117,37 @@ def start(
         "state": "running",
     }, indent=2) + "\n")
     runner = d / "run.sh"
-    runner.write_text(RUNNER_TEMPLATE.replace("{dsh}", DSH))
+    runner.write_text(
+        RUNNER_TEMPLATE.replace("{dsh}", DSH).replace("{repo_git}", str(repo_path / ".git"))
+    )
     runner.chmod(0o755)
     token = os.environ.get("XCC_DSH_TOKEN") or os.environ.get("XCC_TOKEN", "")
     env = dict(os.environ)
     env["PATH"] = f"{NODE_BIN}:{env.get('PATH', '/usr/bin')}"
+    # Commits on the job branch are authored by the job runner, not the operator (a background
+    # job must never borrow the operator's git identity, which may be unset on a fresh install).
+    runner_env = {
+        "XCC_JOB_API_KEY": token,
+        "PATH": f"{NODE_BIN}:/usr/bin:/bin",
+        "HOME": os.environ.get("HOME", "/"),
+        "GIT_AUTHOR_NAME": "xccode job",
+        "GIT_AUTHOR_EMAIL": "xccode-jobs@localhost",
+        "GIT_COMMITTER_NAME": "xccode job",
+        "GIT_COMMITTER_EMAIL": "xccode-jobs@localhost",
+    }
     sysd = shutil.which("systemd-run")
     if sysd:
+        setenv = [e for kv in runner_env.items() for e in ("--setenv", "=".join(kv))]
         spawn(
             [sysd, "--user", "--scope", "-p", "MemoryMax=2G", "-p", "CPUWeight=30",
              "--collect", "--unit", f"xc-job-{job_id}",
-             "--setenv", f"XCC_JOB_API_KEY={token}",
-             "--setenv", f"PATH={env['PATH']}",
+             *setenv,
              str(d / "run.sh")],
             check=True, env=env,
         )
     else:  # hosts without a user manager (test hosts): run detached with the same env
-        env["XCC_JOB_API_KEY"] = token
         subprocess.Popen(
-            [str(d / "run.sh")], cwd=d, start_new_session=True, env=env,
+            [str(d / "run.sh")], cwd=d, start_new_session=True, env={**env, **runner_env},
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     return job_id

@@ -555,6 +555,15 @@ step_collect() {
 
 # --- 9b. opencode serve: the operator's opencode.nvim backend on 127.0.0.1:18090 (§4.3) --------
 step_serve() {
+    # Linger: the operator's user manager must persist beyond the login session — `opencode
+    # serve` is a user unit, and background dsh jobs (§7) run in the user scope and have to
+    # survive the session that started them. (Found missing on thor: Linger=no dead-ends
+    # `systemd-run --user` for anything but a live desktop login.)
+    if [ "$(loginctl show-user "$OPERATOR" -p Linger --value 2>/dev/null)" = "yes" ]; then
+        echo "already: linger for $OPERATOR"
+    else
+        run "loginctl enable-linger $OPERATOR" loginctl enable-linger "$OPERATOR"
+    fi
     # Password credential: root-only in the SYSTEM credential store. User units do read system
     # credstore entries for LoadCredentialEncrypted=; systemd decrypts them for the unit's
     # ExecStart only. The file is 0600 root:root and is never in the repo.

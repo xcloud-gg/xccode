@@ -26,12 +26,25 @@ class OmniRouteProvider:
         self._api_key = api_key
         self._client = client or httpx.Client(timeout=timeout)
 
-    def __call__(self, pool: str, messages: list[dict]) -> Completion:
+    def __call__(
+        self,
+        pool: str,
+        messages: list[dict],
+        tools: list[dict] | None = None,
+        tool_choice: dict | str | None = None,
+    ) -> Completion:
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else None
+        # The request body carries tools only when the caller sent them (§7 dsh jobs): the
+        # plain two-field form keeps text-only clients byte-identical.
+        body: dict = {"model": pool, "messages": messages}
+        if tools is not None:
+            body["tools"] = tools
+            if tool_choice is not None:
+                body["tool_choice"] = tool_choice
         try:
             resp = self._client.post(
                 f"{self.base_url}/v1/chat/completions",
-                json={"model": pool, "messages": messages},
+                json=body,
                 headers=headers,
             )
             resp.raise_for_status()
@@ -39,10 +52,13 @@ class OmniRouteProvider:
         except (httpx.HTTPError, ValueError) as e:
             raise ProviderError(str(e)) from e
         choice = data["choices"][0]
+        message = choice.get("message") or {}
+        tool_calls = message.get("tool_calls")
         usage = data.get("usage", {})
         return Completion(
-            text=choice["message"]["content"],
+            text=message.get("content") or "",
             tokens_in=int(usage.get("prompt_tokens", 0)),
             tokens_out=int(usage.get("completion_tokens", 0)),
             cost_micro_usd=int(usage.get("total_cost", 0)),
+            tool_calls=tuple(tool_calls) if tool_calls else None,
         )
