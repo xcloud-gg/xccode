@@ -189,6 +189,10 @@ EOF
         "$OPT/skills/approved/karpathy-guidelines/SKILL.md" 0644
     copy_file "$(dirname "$0")/../etc/skills/karpathy-guidelines/EXAMPLES.md" \
         "$OPT/skills/approved/karpathy-guidelines/EXAMPLES.md" 0644
+    # The routing-bench suite the weekly timer scores every pool against (§4.13, §8). Root-owned;
+    # the bench service (User=xccode) only reads it.
+    ensure_dir "$ETC/bench" "root:root" 0755
+    copy_file "$(dirname "$0")/../etc/bench/routing.toml" "$ETC/bench/routing.toml" 0644
 }
 
 # --- 4. signed release: download, verify, extract into /opt/xcloud/xccode ---------
