@@ -207,16 +207,16 @@ step_fetch() {
 # --- 4b. venv: build xccode from the extracted source ----------------------------
 step_venv() {
     src="$OPT/src"
-    if [ -x "$OPT/venv/bin/xccode" ]; then
-        echo "already: venv"
-        return 0
-    fi
     if [ "$CHECK" = 1 ]; then
-        echo "would: create venv + pip install xccode from $src"
+        echo "would: create venv + pip install xccode (refresh) from $src"
         return 0
     fi
-    echo ">> create venv"
-    python3 -m venv "$OPT/venv"
+    if [ ! -x "$OPT/venv/bin/xccode" ]; then
+        echo ">> create venv"
+        python3 -m venv "$OPT/venv"
+    fi
+    # Always (re)install: the release source may have changed since the last install, and pip is a
+    # no-op when it is unchanged. This is what makes an upgrade actually apply code changes.
     echo ">> pip install xccode"
     "$OPT/venv/bin/pip" install --quiet "$src"
 }
